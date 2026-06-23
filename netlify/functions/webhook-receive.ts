@@ -74,7 +74,7 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
     const rawIp = event.headers['x-forwarded-for'] || event.headers['client-ip'] || null
     const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
 
-    const { data: log, error: insertError } = await supabase
+    let insertResult = await supabase
       .from('webhook_logs')
       .insert({
         webhook_id: webhook.id,
@@ -85,11 +85,24 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .select('id')
       .single()
 
-    if (insertError) {
-      return jsonResponse(500, { error: 'Failed to store log', details: insertError.message })
+    if (insertResult.error && insertResult.error.message.includes('inet')) {
+      insertResult = await supabase
+        .from('webhook_logs')
+        .insert({
+          webhook_id: webhook.id,
+          payload: payload ?? {},
+          headers: event.headers as Record<string, string>,
+          ip_address: null,
+        })
+        .select('id')
+        .single()
     }
 
-    return jsonResponse(200, { success: true, logId: log.id })
+    if (insertResult.error) {
+      return jsonResponse(500, { error: 'Failed to store log', details: insertResult.error.message })
+    }
+
+    return jsonResponse(200, { success: true, logId: insertResult.data.id })
   } catch (err) {
     return jsonResponse(500, { error: 'Internal error', details: (err as Error).message })
   }
