@@ -16,8 +16,9 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
   const timestamp = new Date(log.created_at).toLocaleString()
 
   const isRoblox = log.payload?.source === 'roblox'
+  const player = log.payload?.player as Record<string, unknown> | undefined
   const previewText = isRoblox
-    ? `Roblox: ${log.payload.username || 'unknown'} (UID: ${log.payload.userid || '-'})`
+    ? `Roblox: ${player?.username || 'unknown'} (UID: ${player?.userid || '-'})`
     : JSON.stringify(log.payload).substring(0, 80)
   const previewTruncated = isRoblox
     ? false
