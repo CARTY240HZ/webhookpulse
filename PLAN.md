@@ -16,8 +16,8 @@ WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `09962af`) a
 | 2 | Endpoint CSV Export | ✅ Hecho | `97e3c61` (`api/webhook-export.ts`) |
 | 3 | Boton Export CSV en frontend | ✅ Hecho | `97e3c61` (`WebhookDetailPage.tsx`) |
 | 4 | Security + Rate Limiting | ✅ Hecho | `09962af` (body cap, rate limit, path validation) |
-| 5 | Paginacion de Logs | ⏳ Pendiente | |
-| 6 | Stats Dashboard (Graficos) | ⏳ Pendiente | |
+| 5 | Paginacion de Logs | ✅ Hecho | `b92b4e9` (`useRealtimeLogs` + `Load more`) |
+| 6 | Stats Dashboard (Graficos) | ✅ Hecho | `ffd14d9` (`StatsPage.tsx` + SVG charts) |
 
 ---
 
@@ -62,29 +62,29 @@ WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `09962af`) a
 
 ---
 
-### Tarea 5: Paginacion de Logs — ⏳ PENDIENTE
+### Tarea 5: Paginacion de Logs — ✅ HECHO
 
-**Objetivo:** Actualmente `useRealtimeLogs` limita a 200 logs. Implementar paginacion.
+**Implementado en:** `b92b4e9`
 
-**Requisitos:**
-- `useRealtimeLogs` acepta `page` y `pageSize` (default 50)
-- Boton "Load more" en `WebhookDetailPage`
-- Nuevos logs por realtime se anaden al top
-
-**Archivos:** `src/hooks/useRealtimeLogs.ts`, `src/pages/WebhookDetailPage.tsx`
+- `useRealtimeLogs` ahora usa paginacion con `.range()` (50 logs por pagina)
+- Boton "Load more" en `WebhookDetailPage` para cargar mas logs
+- Nuevos logs por realtime se anaden al top correctamente
+- Estado `loadingMore` + `hasMore` para controlar la carga
 
 ---
 
-### Tarea 6: Stats Dashboard (Graficos) — ⏳ PENDIENTE
+### Tarea 6: Stats Dashboard (Graficos) — ✅ HECHO
 
-**Objetivo:** Pagina de estadisticas con graficos de actividad.
+**Implementado en:** `ffd14d9`
 
-**Requisitos:**
-- Nueva ruta: `/dashboard/stats`
-- Graficos: Logs por hora (24h), logs por webhook, top IPs, top sources
-- Estilo oscuro premium con acento lime
-
-**Archivos:** `src/pages/StatsPage.tsx` (nuevo), `src/App.tsx`, `src/components/Sidebar.tsx`
+- Nueva ruta `/dashboard/stats` con navegacion en Sidebar
+- 4 tarjetas de resumen: Total logs, Webhooks, Unique IPs, Sources
+- Grafico de barras: Logs por hora (ultimas 24h)
+- Grafico de barras: Logs por webhook
+- Grafico de barras horizontal: Top 10 IPs
+- Donut chart SVG: Distribucion de sources (roblox vs otros)
+- Todos los graficos en tema oscuro premium con acento lime
+- Sin librerias externas (CSS puro + SVG)
 
 ---
 
