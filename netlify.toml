@@ -7,16 +7,21 @@
   command = "npm run dev"
   targetPort = 5173
 
-# API routes → Netlify Functions (evaluated FIRST)
+# API routes → Netlify Functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# SPA fallback → index.html for all client routes (evaluated LAST)
-# force = true ensures this always triggers even if a static file exists
+# Static assets → serve directly (must be before SPA fallback)
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+# SPA fallback → index.html for client routes only
+# No force = true: Netlify serves real files if they exist
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  force = true
