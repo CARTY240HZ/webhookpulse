@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download } from 'lucide-react'
 import { useRealtimeLogs } from '../hooks/useRealtimeLogs'
 import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
@@ -16,6 +16,42 @@ export default function WebhookDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+
+  const [exporting, setExporting] = useState(false)
+
+  const handleExport = async () => {
+    if (!id) return
+    setExporting(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        alert('Session expired. Please log in again.')
+        return
+      }
+      const res = await fetch(`${baseUrl}/api/webhook-export?webhookId=${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Export failed' }))
+        alert(err.error || 'Export failed')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `webhook-logs-${id}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('Export failed')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
 
@@ -213,6 +249,14 @@ export default function WebhookDetailPage() {
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete all
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={exporting || logs.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {exporting ? 'Exporting...' : 'Export CSV'}
               </button>
             </div>
           )}
