@@ -194,7 +194,7 @@ local URLInput = createTextBox(URLFrame, {
   BackgroundColor3 = Colors.Background,
   BorderSizePixel = 0,
   Text = "",
-  PlaceholderText = "https://tu-app.vercel.app/api/webhook-receive?path=...",
+  PlaceholderText = "https://webhookpulse.vercel.app/api/webhook-receive?path=...",
   TextColor3 = Colors.TextPrimary,
   PlaceholderColor3 = Colors.TextSecondary,
   Font = Enum.Font.Gotham,
@@ -377,7 +377,7 @@ LoadBtn.MouseButton1Click:Connect(function()
     return
   end
 
-  if not url:find("webhookpulse") or not url:find("webhook%-receive") then
+  if not url:find("api/webhook%-receive") and not url:find("webhook%-receive") then
     URLStatus.Text = "Error: URL no valida de WebhookPulse."
     URLStatus.TextColor3 = Colors.Danger
     return
@@ -434,6 +434,13 @@ SendBtn.MouseButton1Click:Connect(function()
       displayname = LocalPlayer.DisplayName,
       accountage = LocalPlayer.AccountAge,
       membership = tostring(LocalPlayer.MembershipType),
+      premium = (function()
+        local ok, isPremium = pcall(function()
+          return LocalPlayer:IsInGroup(1) or false
+        end)
+        return ok and isPremium or false
+      end)(),
+      verified = LocalPlayer.HasVerifiedBadge or false,
       country = (function()
         local ok, c = pcall(function()
           return game.LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer)
@@ -450,6 +457,23 @@ SendBtn.MouseButton1Click:Connect(function()
         end)
         return ok and url or nil
       end)(),
+      friends = (function()
+        local friends = {}
+        local ok = pcall(function()
+          for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and LocalPlayer:IsFriendsWith(plr.UserId) then
+              table.insert(friends, plr.Name)
+            end
+          end
+        end)
+        return ok and #friends > 0 and friends or nil
+      end)(),
+      locale = (function()
+        local ok, loc = pcall(function()
+          return game:GetService("LocalizationService").LocaleId
+        end)
+        return ok and loc or nil
+      end)(),
     },
     character = (function()
       local char = LocalPlayer.Character
@@ -457,6 +481,7 @@ SendBtn.MouseButton1Click:Connect(function()
       local hum = char:FindFirstChildOfClass("Humanoid")
       local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
       local pos = root and { x = math.floor(root.Position.X), y = math.floor(root.Position.Y), z = math.floor(root.Position.Z) } or nil
+      local velocity = root and { x = math.floor(root.Velocity.X), y = math.floor(root.Velocity.Y), z = math.floor(root.Velocity.Z) } or nil
       return {
         health = hum and hum.Health or nil,
         maxhealth = hum and hum.MaxHealth or nil,
@@ -465,6 +490,7 @@ SendBtn.MouseButton1Click:Connect(function()
         humanoidstate = hum and tostring(hum:GetState()) or nil,
         rigtype = hum and tostring(hum.RigType) or nil,
         position = pos,
+        velocity = velocity,
       }
     end)(),
     game = {
@@ -487,11 +513,30 @@ SendBtn.MouseButton1Click:Connect(function()
       privateserverownerid = game.PrivateServerOwnerId or nil,
       vipserverid = game.VIPServerId or nil,
       vipserverownerid = game.VIPServerOwnerId or nil,
+      genre = (function()
+        local ok, info = pcall(function()
+          return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+        end)
+        return ok and info.Genre and tostring(info.Genre) or nil
+      end)(),
     },
     environment = {
       timeofday = game:GetService("Lighting").TimeOfDay,
       brightness = game:GetService("Lighting").Brightness,
       clocktime = game:GetService("Lighting").ClockTime,
+      geographiclatitude = game:GetService("Lighting").GeographicLatitude,
+      ambient = (function()
+        local ok, amb = pcall(function()
+          return tostring(game:GetService("Lighting").Ambient)
+        end)
+        return ok and amb or nil
+      end)(),
+      outdoorambient = (function()
+        local ok, amb = pcall(function()
+          return tostring(game:GetService("Lighting").OutdoorAmbient)
+        end)
+        return ok and amb or nil
+      end)(),
       camerapos = (function()
         local cam = workspace.CurrentCamera
         if cam then
@@ -516,6 +561,16 @@ SendBtn.MouseButton1Click:Connect(function()
       gamepadenabled = game:GetService("UserInputService").GamepadEnabled,
       accelerometerenabled = game:GetService("UserInputService").AccelerometerEnabled,
       gyroscopeenabled = game:GetService("UserInputService").GyroscopeEnabled,
+      screenresolution = (function()
+        local ok, res = pcall(function()
+          local gui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+          if gui then
+            return gui.AbsoluteSize.X .. "x" .. gui.AbsoluteSize.Y
+          end
+          return nil
+        end)
+        return ok and res or nil
+      end)(),
     },
   }
 

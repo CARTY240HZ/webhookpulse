@@ -58,9 +58,17 @@ export default async function handler(req: any, res: any) {
 
     let payload: unknown = null
     try {
-      payload = req.body ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) : null
+      if (req.body) {
+        if (Buffer.isBuffer(req.body)) {
+          payload = JSON.parse(req.body.toString('utf-8'))
+        } else if (typeof req.body === 'string') {
+          payload = JSON.parse(req.body)
+        } else {
+          payload = req.body
+        }
+      }
     } catch {
-      payload = req.body
+      payload = {}
     }
 
     const rawIp = req.headers['x-forwarded-for'] || req.headers['client-ip'] || null

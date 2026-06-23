@@ -1,13 +1,23 @@
 import type { WebhookLog } from '../types'
-import { Gamepad2, User, Globe, Smartphone, Cpu, PersonStanding, Sun, Clock } from 'lucide-react'
+import { Gamepad2, User, Globe, Smartphone, Cpu, PersonStanding, Sun, Clock, AlertTriangle } from 'lucide-react'
 
 interface RobloxEmbedProps {
   log: WebhookLog
 }
 
 export default function RobloxEmbed({ log }: RobloxEmbedProps) {
-  const p = log.payload as Record<string, unknown>
-  
+  // Robust payload parsing: handle string, null, or object
+  let p: Record<string, unknown> = {}
+  try {
+    if (typeof log.payload === 'string') {
+      p = JSON.parse(log.payload) as Record<string, unknown>
+    } else if (log.payload && typeof log.payload === 'object') {
+      p = log.payload as Record<string, unknown>
+    }
+  } catch {
+    p = {}
+  }
+
   // Compatibilidad: datos antiguos (planos) y nuevos (anidados en player.*)
   const player = (p.player as Record<string, unknown>) || {}
   const game = (p.game as Record<string, unknown>) || {}
@@ -20,6 +30,10 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
   const getPlayerField = (key: string): unknown => {
     return player[key] !== undefined ? player[key] : p[key]
   }
+
+  const hasAnyData =
+    Object.keys(p).length > 0 &&
+    (p.source === 'roblox' || getPlayerField('userid') !== undefined || getPlayerField('username') !== undefined)
 
   const timestamp = p.timestamp
     ? new Date((p.timestamp as number) * 1000).toLocaleString('es-ES', {
@@ -66,6 +80,15 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
           </div>
         </div>
 
+        {!hasAnyData && (
+          <div className="flex items-center gap-2 p-3 bg-danger/10 border border-danger/20 rounded mb-4">
+            <AlertTriangle className="w-4 h-4 text-danger shrink-0" />
+            <span className="text-sm text-danger">
+              Payload vacio o corrupto. El webhook recibio la peticion pero los datos no se guardaron correctamente.
+            </span>
+          </div>
+        )}
+
         {/* Executor */}
         {executor && executor.name && (
           <div className="mb-3">
@@ -92,6 +115,9 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
           {getPlayerField('team') && <Field label="Team" value={String(getPlayerField('team'))} />}
           {getPlayerField('teamcolor') && <Field label="Team Color" value={String(getPlayerField('teamcolor'))} />}
           {getPlayerField('neutral') !== undefined && <Field label="Neutral" value={String(getPlayerField('neutral'))} />}
+          {getPlayerField('characterappearanceid') && (
+            <Field label="Appearance ID" value={String(getPlayerField('characterappearanceid'))} />
+          )}
         </div>
 
         {/* Character */}
@@ -140,6 +166,10 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
               {game.maxplayers && <Field label="Max Players" value={String(game.maxplayers)} />}
               {game.numplayers !== undefined && <Field label="Players" value={String(game.numplayers)} />}
               {game.isloaded !== undefined && <Field label="Loaded" value={String(game.isloaded)} />}
+              {game.gameid && <Field label="Game ID" value={String(game.gameid)} />}
+              {game.creatorid && <Field label="Creator ID" value={String(game.creatorid)} />}
+              {game.creatortype && <Field label="Creator Type" value={String(game.creatortype)} />}
+              {game.placeversion && <Field label="Place Version" value={String(game.placeversion)} />}
             </div>
           </div>
         )}
@@ -155,6 +185,7 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {environment.timeofday && <Field label="Time of Day" value={String(environment.timeofday)} />}
+              {environment.clocktime !== undefined && <Field label="Clock Time" value={String(environment.clocktime)} />}
               {environment.brightness !== undefined && <Field label="Brightness" value={String(environment.brightness)} />}
               {environment.camerapos && (
                 <div className="col-span-2">
@@ -187,6 +218,8 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
               {device.mouseenabled !== undefined && <Field label="Mouse" value={String(device.mouseenabled)} />}
               {device.keyboardenabled !== undefined && <Field label="Keyboard" value={String(device.keyboardenabled)} />}
               {device.gamepadenabled !== undefined && <Field label="Gamepad" value={String(device.gamepadenabled)} />}
+              {device.accelerometerenabled !== undefined && <Field label="Accelerometer" value={String(device.accelerometerenabled)} />}
+              {device.gyroscopeenabled !== undefined && <Field label="Gyroscope" value={String(device.gyroscopeenabled)} />}
             </div>
           </div>
         )}

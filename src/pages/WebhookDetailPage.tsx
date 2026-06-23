@@ -11,7 +11,7 @@ export default function WebhookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { webhooks, refresh } = useWebhooks()
-  const { logs, loading: logsLoading, deleteSelectedLogs, deleteAllLogs } = useRealtimeLogs(id || null)
+  const { logs, loading: logsLoading, deleteLog, deleteSelectedLogs, deleteAllLogs } = useRealtimeLogs(id || null)
   const [copied, setCopied] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -233,6 +233,7 @@ export default function WebhookDetailPage() {
                   log={log}
                   selected={selectedIds.has(log.id)}
                   onSelect={handleSelect}
+                  onDelete={(logId) => { deleteLog(logId); setSelectedIds((prev) => { const next = new Set(prev); next.delete(logId); return next }) }}
                 />
               ))}
             </div>
