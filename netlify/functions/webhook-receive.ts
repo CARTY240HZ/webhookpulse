@@ -71,13 +71,16 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       payload = event.body
     }
 
+    const rawIp = event.headers['x-forwarded-for'] || event.headers['client-ip'] || null
+    const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
+
     const { data: log, error: insertError } = await supabase
       .from('webhook_logs')
       .insert({
         webhook_id: webhook.id,
         payload: payload ?? {},
         headers: event.headers as Record<string, string>,
-        ip_address: event.headers['x-forwarded-for'] || event.headers['client-ip'] || null,
+        ip_address: ipAddress,
       })
       .select('id')
       .single()
