@@ -1,35 +1,53 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { WebhookLog } from '../types'
+
+const PAGE_SIZE = 50
 
 export function useRealtimeLogs(webhookId: string | null) {
   const [logs, setLogs] = useState<WebhookLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(1)
+
+  const fetchLogs = useCallback(async (pageNum: number, append: boolean) => {
+    if (!webhookId) return
+
+    const from = (pageNum - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    const { data, error } = await supabase
+      .from('webhook_logs')
+      .select('*')
+      .eq('webhook_id', webhookId)
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (!error && data) {
+      const newLogs = data as WebhookLog[]
+      if (append) {
+        setLogs((prev) => [...prev, ...newLogs])
+      } else {
+        setLogs(newLogs)
+      }
+      setHasMore(newLogs.length === PAGE_SIZE)
+    }
+  }, [webhookId])
 
   useEffect(() => {
     if (!webhookId) {
       setLogs([])
       setLoading(false)
+      setHasMore(true)
+      setPage(1)
       return
     }
 
     setLoading(true)
+    setPage(1)
 
-    const fetchLogs = async () => {
-      const { data, error } = await supabase
-        .from('webhook_logs')
-        .select('*')
-        .eq('webhook_id', webhookId)
-        .order('created_at', { ascending: false })
-        .limit(200)
-
-      if (!error && data) {
-        setLogs(data as WebhookLog[])
-      }
-      setLoading(false)
-    }
-
-    fetchLogs()
+    fetchLogs(1, false).then(() => setLoading(false))
 
     const subscription = supabase
       .channel(`webhook_logs:${webhookId}`)
@@ -50,7 +68,16 @@ export function useRealtimeLogs(webhookId: string | null) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [webhookId])
+  }, [webhookId, fetchLogs])
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    const nextPage = page + 1
+    await fetchLogs(nextPage, true)
+    setPage(nextPage)
+    setLoadingMore(false)
+  }
 
   const deleteLog = async (logId: string) => {
     if (!webhookId) return
@@ -84,8 +111,9 @@ export function useRealtimeLogs(webhookId: string | null) {
       .eq('webhook_id', webhookId)
     if (!error) {
       setLogs([])
+      setHasMore(false)
     }
   }
 
-  return { logs, loading, deleteLog, deleteSelectedLogs, deleteAllLogs }
+  return { logs, loading, loadingMore, hasMore, loadMore, deleteLog, deleteSelectedLogs, deleteAllLogs }
 }

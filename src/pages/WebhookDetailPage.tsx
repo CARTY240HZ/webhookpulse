@@ -11,7 +11,7 @@ export default function WebhookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { webhooks, refresh } = useWebhooks()
-  const { logs, loading: logsLoading, deleteLog, deleteSelectedLogs, deleteAllLogs } = useRealtimeLogs(id || null)
+  const { logs, loading: logsLoading, loadingMore, hasMore, loadMore, deleteLog, deleteSelectedLogs, deleteAllLogs } = useRealtimeLogs(id || null)
   const [copied, setCopied] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -280,6 +280,17 @@ export default function WebhookDetailPage() {
                   onDelete={(logId) => { deleteLog(logId); setSelectedIds((prev) => { const next = new Set(prev); next.delete(logId); return next }) }}
                 />
               ))}
+              {hasMore && (
+                <div className="px-4 py-4 text-center">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Loading...' : 'Load more'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
