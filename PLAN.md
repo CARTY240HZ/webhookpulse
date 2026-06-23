@@ -2,81 +2,67 @@
 
 ## Contexto
 
-WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `941f824`) limpio archivos obsoletos y dejo solo:
-- Backend: `api/*.ts` (5 endpoints Vercel)
-- Frontend: React + Vite + Tailwind en `src/`
-- Script Lua: `roblox/WebhookPulseSender_v2.lua` (unico)
-- Supabase: PostgreSQL + Auth + Realtime
+WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `09962af`) agrego:
+- **CSV Export**: `api/webhook-export.ts` + boton en frontend
+- **Security**: rate limiting (10 req/min por IP), body size cap (256 KB), path validation
+- Cleanup: archivos obsoletos de Netlify/Redis borrados
+- Script Lua unico: `roblox/WebhookPulseSender_v2.lua`
 
-## Tareas Pendientes (por prioridad)
+## Estado de Tareas
 
----
-
-### Tarea 1: Verificar que el embed muestra datos correctos (CRITICO)
-
-**Objetivo:** Confirmar que el embed en `WebhookDetailPage` ya no muestra "unknown" ni payload vacio.
-
-**Pasos:**
-1. Abrir dashboard, entrar al webhook "AXE", revisar los 6 logs existentes.
-2. Si el embed muestra datos correctos → esta tarea esta lista.
-3. Si sigue mostrando "unknown" o "Payload vacio" → investigar:
-   - Revisar tabla `webhook_logs` en Supabase SQL Editor: `SELECT payload FROM webhook_logs WHERE webhook_id = '...' ORDER BY created_at DESC LIMIT 5;`
-   - Si `payload` es `{}` o `null` → problema en backend (`api/webhook-receive.ts` no parsea Buffer).
-   - Si `payload` tiene datos → problema en frontend (`src/components/RobloxEmbed.tsx` no lee campos).
-
-**Archivos:**
-- `api/webhook-receive.ts` (backend)
-- `src/components/RobloxEmbed.tsx` (frontend)
-- `src/pages/WebhookDetailPage.tsx` (frontend)
+| # | Tarea | Estado | Commit |
+|---|-------|--------|--------|
+| 1 | Verificar embed (no "unknown") | ✅ Hecho | `14e7248` (Buffer fix + RobloxEmbed robusto) |
+| 2 | Endpoint CSV Export | ✅ Hecho | `97e3c61` (`api/webhook-export.ts`) |
+| 3 | Boton Export CSV en frontend | ✅ Hecho | `97e3c61` (`WebhookDetailPage.tsx`) |
+| 4 | Security + Rate Limiting | ✅ Hecho | `09962af` (body cap, rate limit, path validation) |
+| 5 | Paginacion de Logs | ⏳ Pendiente | |
+| 6 | Stats Dashboard (Graficos) | ⏳ Pendiente | |
 
 ---
 
-### Tarea 2: Endpoint CSV Export (`api/webhook-export.ts`)
+### Tarea 1: Verificar que el embed muestra datos correctos (CRITICO) — ✅ HECHO
 
-**Objetivo:** Permitir al usuario descargar los logs de un webhook como archivo CSV.
+**Implementado en:** `14e7248`
 
-**Requisitos:**
-- GET `/api/webhook-export?webhookId=xxx` con JWT Bearer
-- Devuelve CSV con headers: `id,created_at,source_ip,payload_json`
-- `payload_json`: JSON.stringify del payload escapado para CSV
-- Headers respuesta: `Content-Type: text/csv`, `Content-Disposition: attachment; filename="webhook-logs-{webhookId}.csv"`
-- Si no hay logs → CSV con solo headers
-- Manejar OPTIONS preflight (CORS)
-
-**Archivo a crear:** `api/webhook-export.ts`
-**Pattern a copiar:** `api/webhook-logs.ts` para Supabase, JWT, CORS.
+- Buffer body parsing fix en `api/webhook-receive.ts`
+- `RobloxEmbed.tsx` robusto con deteccion de payload vacio/corrupto
+- Compatibilidad con payload anidado (`player.*`) y plano (`p.*`)
 
 ---
 
-### Tarea 3: Boton Export CSV en Frontend
+### Tarea 2: Endpoint CSV Export (`api/webhook-export.ts`) — ✅ HECHO
 
-**Objetivo:** Agregar boton "Export CSV" en `WebhookDetailPage`.
+**Implementado en:** `97e3c61`
 
-**Requisitos:**
-- Boton en barra de acciones de logs (junto a "Delete all")
-- Llama a `/api/webhook-export?webhookId=xxx`
-- Descarga automatica del archivo (blob + URL.createObjectURL + a.click())
-- Mostrar spinner mientras se genera
-
-**Archivo a modificar:** `src/pages/WebhookDetailPage.tsx`
+- `api/webhook-export.ts` creado con Supabase, JWT, CORS
+- Devuelve CSV con `id,created_at,source_ip,payload_json`
+- `Content-Disposition: attachment` para descarga automatica
 
 ---
 
-### Tarea 4: Security Audit + Rate Limiting
+### Tarea 3: Boton Export CSV en Frontend — ✅ HECHO
 
-**Objetivo:** Proteger endpoints de abuso.
+**Implementado en:** `97e3c61`
 
-**Requisitos para `api/webhook-receive.ts`:**
-1. **Body size limit**: Si body > 256 KB → retornar `413 Payload Too Large`.
-2. **Rate limiting por IP**: 10 requests/minuto por IP. Usar tabla `rate_limits` en Supabase o contador en memoria.
-3. **Validacion de path**: `url_path` debe ser `[a-zA-Z0-9_-]{1,64}`.
-4. **CORS restrictivo**: `Access-Control-Allow-Origin` solo para el dominio de produccion.
-
-**Archivo a modificar:** `api/webhook-receive.ts`
+- Boton "Export CSV" con icono `Download` en barra de acciones de logs
+- Descarga automatica via blob + `URL.createObjectURL`
+- Spinner "Exporting..." mientras se genera
 
 ---
 
-### Tarea 5: Paginacion de Logs
+### Tarea 4: Security Audit + Rate Limiting — ✅ HECHO
+
+**Implementado en:** `09962af`
+
+- **Body size cap**: 256 KB maximo → retorna `413 Payload Too Large`
+- **Rate limit**: 10 requests/minuto por IP, usando `webhook_logs` tabla para contar
+- **Path validation**: regex `^[a-zA-Z0-9_-]{1,64}$` previene inyeccion/DoS
+- **IP safe**: fallback a `null` si PostgreSQL `inet` rechaza el formato
+
+---
+
+### Tarea 5: Paginacion de Logs — ⏳ PENDIENTE
 
 **Objetivo:** Actualmente `useRealtimeLogs` limita a 200 logs. Implementar paginacion.
 
@@ -89,7 +75,7 @@ WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `941f824`) l
 
 ---
 
-### Tarea 6: Stats Dashboard (Graficos)
+### Tarea 6: Stats Dashboard (Graficos) — ⏳ PENDIENTE
 
 **Objetivo:** Pagina de estadisticas con graficos de actividad.
 
