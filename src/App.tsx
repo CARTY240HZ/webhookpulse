@@ -10,6 +10,8 @@ import DashboardPage from './pages/DashboardPage'
 import WebhookDetailPage from './pages/WebhookDetailPage'
 import SettingsPage from './pages/SettingsPage'
 
+import StatsPage from './pages/StatsPage'
+
 function App() {
   return (
     <AuthProvider>
@@ -32,6 +34,7 @@ function AppRoutes() {
       <Route element={<Layout />}>
         <Route path="/dashboard" element={user ? <DashboardPage /> : <Navigate to="/login" />} />
         <Route path="/dashboard/webhooks/:id" element={user ? <WebhookDetailPage /> : <Navigate to="/login" />} />
+        <Route path="/dashboard/stats" element={user ? <StatsPage /> : <Navigate to="/login" />} />
         <Route path="/dashboard/settings" element={user ? <SettingsPage /> : <Navigate to="/login" />} />
       </Route>
     </Routes>

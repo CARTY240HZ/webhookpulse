@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { Activity, Settings, Home, LogOut } from 'lucide-react'
+import { Activity, Settings, Home, LogOut, BarChart3 } from 'lucide-react'
 
 export default function Sidebar() {
   const { signOut } = useAuth()
@@ -18,13 +18,24 @@ export default function Sidebar() {
         <Link
           to="/dashboard"
           className={`flex items-center px-3 py-2 rounded text-sm font-medium transition-colors ${
-            isActive('/dashboard') && !isActive('/dashboard/settings')
+            isActive('/dashboard') && !isActive('/dashboard/settings') && !isActive('/dashboard/stats')
               ? 'bg-elevated text-accent'
               : 'text-text-secondary hover:bg-elevated hover:text-text-primary'
           }`}
         >
           <Home className="w-4 h-4 mr-3" />
           Dashboard
+        </Link>
+        <Link
+          to="/dashboard/stats"
+          className={`flex items-center px-3 py-2 rounded text-sm font-medium transition-colors ${
+            isActive('/dashboard/stats')
+              ? 'bg-elevated text-accent'
+              : 'text-text-secondary hover:bg-elevated hover:text-text-primary'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 mr-3" />
+          Stats
         </Link>
         <Link
           to="/dashboard/settings"
