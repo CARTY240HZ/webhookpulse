@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, Trash2, Activity } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square } from 'lucide-react'
 import { useRealtimeLogs } from '../hooks/useRealtimeLogs'
 import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
@@ -11,9 +11,11 @@ export default function WebhookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { webhooks, refresh } = useWebhooks()
-  const { logs, loading: logsLoading } = useRealtimeLogs(id || null)
+  const { logs, loading: logsLoading, deleteSelectedLogs, deleteAllLogs } = useRealtimeLogs(id || null)
   const [copied, setCopied] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
 
@@ -52,6 +54,54 @@ export default function WebhookDetailPage() {
       .eq('id', webhook.id)
     await refresh()
   }
+
+  const handleSelect = (logId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(logId)
+      else next.delete(logId)
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === logs.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(logs.map((l) => l.id)))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} selected log(s)? This cannot be undone.`)) return
+    setBatchDeleting(true)
+    try {
+      await deleteSelectedLogs(Array.from(selectedIds))
+      setSelectedIds(new Set())
+    } catch {
+      // ignore
+    } finally {
+      setBatchDeleting(false)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (logs.length === 0) return
+    if (!confirm(`Delete ALL ${logs.length} logs? This cannot be undone.`)) return
+    setBatchDeleting(true)
+    try {
+      await deleteAllLogs()
+      setSelectedIds(new Set())
+    } catch {
+      // ignore
+    } finally {
+      setBatchDeleting(false)
+    }
+  }
+
+  const allSelected = logs.length > 0 && selectedIds.size === logs.length
+  const someSelected = selectedIds.size > 0 && selectedIds.size < logs.length
 
   if (!webhook && !webhooks.length) {
     return <div className="text-sm text-text-secondary">Loading...</div>
@@ -129,7 +179,45 @@ export default function WebhookDetailPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-text-primary mb-4">Recent logs</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-text-primary">Recent logs</h2>
+          {!logsLoading && logs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
+              >
+                {allSelected ? (
+                  <CheckSquare className="w-4 h-4 text-accent" />
+                ) : someSelected ? (
+                  <Square className="w-4 h-4 text-accent" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={batchDeleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-danger/10 text-danger hover:bg-danger/20 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete {selectedIds.size}
+                </button>
+              )}
+              <button
+                onClick={handleDeleteAll}
+                disabled={batchDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-danger/10 text-danger hover:bg-danger/20 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete all
+              </button>
+            </div>
+          )}
+        </div>
+
         <div className="bg-surface border border-border rounded overflow-hidden">
           {logsLoading && (
             <div className="px-4 py-6 text-sm text-text-secondary text-center">Loading logs...</div>
@@ -140,7 +228,12 @@ export default function WebhookDetailPage() {
           {!logsLoading && logs.length > 0 && (
             <div>
               {logs.map((log) => (
-                <LogRow key={log.id} log={log} />
+                <LogRow
+                  key={log.id}
+                  log={log}
+                  selected={selectedIds.has(log.id)}
+                  onSelect={handleSelect}
+                />
               ))}
             </div>
           )}

@@ -52,5 +52,40 @@ export function useRealtimeLogs(webhookId: string | null) {
     }
   }, [webhookId])
 
-  return { logs, loading }
+  const deleteLog = async (logId: string) => {
+    if (!webhookId) return
+    const { error } = await supabase
+      .from('webhook_logs')
+      .delete()
+      .eq('id', logId)
+      .eq('webhook_id', webhookId)
+    if (!error) {
+      setLogs((prev) => prev.filter((l) => l.id !== logId))
+    }
+  }
+
+  const deleteSelectedLogs = async (logIds: string[]) => {
+    if (!webhookId || logIds.length === 0) return
+    const { error } = await supabase
+      .from('webhook_logs')
+      .delete()
+      .in('id', logIds)
+      .eq('webhook_id', webhookId)
+    if (!error) {
+      setLogs((prev) => prev.filter((l) => !logIds.includes(l.id)))
+    }
+  }
+
+  const deleteAllLogs = async () => {
+    if (!webhookId) return
+    const { error } = await supabase
+      .from('webhook_logs')
+      .delete()
+      .eq('webhook_id', webhookId)
+    if (!error) {
+      setLogs([])
+    }
+  }
+
+  return { logs, loading, deleteLog, deleteSelectedLogs, deleteAllLogs }
 }

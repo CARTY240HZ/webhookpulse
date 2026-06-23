@@ -42,7 +42,7 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
     return { statusCode: 204, headers: corsHeaders() }
   }
 
-  if (event.httpMethod !== 'GET') {
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'DELETE') {
     return jsonResponse(405, { error: 'Method not allowed' })
   }
 
@@ -68,6 +68,37 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
 
     if (ownerError || !webhook) {
       return jsonResponse(404, { error: 'Webhook not found' })
+    }
+
+    if (event.httpMethod === 'DELETE') {
+      const body = event.body ? JSON.parse(event.body) : {}
+      const logIds = body.logIds || []
+      const deleteAll = body.deleteAll === true
+
+      if (deleteAll) {
+        const { error: delError } = await supabase
+          .from('webhook_logs')
+          .delete()
+          .eq('webhook_id', webhookId)
+        if (delError) {
+          return jsonResponse(500, { error: 'Failed to delete logs', details: delError.message })
+        }
+        return jsonResponse(200, { success: true, deleted: 'all' })
+      }
+
+      if (logIds.length === 0) {
+        return jsonResponse(400, { error: 'No logIds provided' })
+      }
+
+      const { error: delError } = await supabase
+        .from('webhook_logs')
+        .delete()
+        .in('id', logIds)
+        .eq('webhook_id', webhookId)
+      if (delError) {
+        return jsonResponse(500, { error: 'Failed to delete logs', details: delError.message })
+      }
+      return jsonResponse(200, { success: true, deleted: logIds.length })
     }
 
     const { data: logs, error } = await supabase
