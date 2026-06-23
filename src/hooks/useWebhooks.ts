@@ -33,9 +33,22 @@ export function useWebhooks() {
   }, [fetchWebhooks])
 
   const createWebhook = async (name: string, description?: string, secret?: string) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const rand = Math.random().toString(36).substring(2, 8)
+    const urlPath = `${base}-${rand}`
+
     const { data, error: supaError } = await supabase
       .from('webhooks')
-      .insert({ name, description: description || null, secret: secret || null })
+      .insert({
+        user_id: user.id,
+        name: name.trim(),
+        description: description?.trim() || null,
+        url_path: urlPath,
+        secret: secret?.trim() || null,
+      })
       .select('*')
       .single()
 
