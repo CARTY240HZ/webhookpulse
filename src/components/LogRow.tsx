@@ -26,6 +26,13 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
 
   return (
     <div className="border-b border-border last:border-b-0">
+      {/* Siempre mostrar embed para Roblox, sin necesidad de expandir */}
+      {isRoblox && (
+        <div className="px-4 pt-3">
+          <RobloxEmbed log={log} />
+        </div>
+      )}
+      
       <div className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-elevated transition-colors">
         <input
           type="checkbox"
@@ -59,9 +66,10 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
           </button>
         )}
       </div>
+      
+      {/* Non-Roblox: show payload on expand. Roblox: raw JSON on expand */}
       {expanded && (
         <div className="px-4 pb-4 space-y-3">
-          {isRoblox && <RobloxEmbed log={log} />}
           <div>
             <div className="text-xs text-text-secondary uppercase tracking-wider font-semibold mb-1">
               {isRoblox ? 'Raw Payload' : 'Payload'}

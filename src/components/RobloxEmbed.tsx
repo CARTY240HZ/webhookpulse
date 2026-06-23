@@ -1,5 +1,5 @@
 import type { WebhookLog } from '../types'
-import { Gamepad2, User, Globe, Smartphone, Cpu, PersonStanding, Sun } from 'lucide-react'
+import { Gamepad2, User, Globe, Smartphone, Cpu, PersonStanding, Sun, Clock } from 'lucide-react'
 
 interface RobloxEmbedProps {
   log: WebhookLog
@@ -7,12 +7,19 @@ interface RobloxEmbedProps {
 
 export default function RobloxEmbed({ log }: RobloxEmbedProps) {
   const p = log.payload as Record<string, unknown>
+  
+  // Compatibilidad: datos antiguos (planos) y nuevos (anidados en player.*)
   const player = (p.player as Record<string, unknown>) || {}
   const game = (p.game as Record<string, unknown>) || {}
   const device = (p.device as Record<string, unknown>) || {}
   const character = (p.character as Record<string, unknown>) || null
   const environment = (p.environment as Record<string, unknown>) || null
   const executor = (p.executor as Record<string, unknown>) || null
+
+  // Leer de player.* (nuevo) o directamente de p.* (viejo) para compatibilidad
+  const getPlayerField = (key: string): unknown => {
+    return player[key] !== undefined ? player[key] : p[key]
+  }
 
   const timestamp = p.timestamp
     ? new Date((p.timestamp as number) * 1000).toLocaleString('es-ES', {
@@ -35,21 +42,27 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
   )
 
   return (
-    <div className="flex rounded-lg overflow-hidden bg-elevated border border-border">
-      {/* Barra lateral estilo Discord embed */}
+    <div className="flex rounded-lg overflow-hidden bg-elevated border border-border my-2">
+      {/* Barra lateral estilo Discord embed - lime */}
       <div className="w-1 shrink-0 bg-accent" />
 
       <div className="flex-1 p-4">
-        {/* Header */}
+        {/* Header con icono y timestamp */}
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
             <Gamepad2 className="w-5 h-5 text-accent" />
           </div>
-          <div>
+          <div className="flex-1">
             <div className="text-sm font-semibold text-text-primary">
               Roblox Profile Data
             </div>
-            <div className="text-xs text-text-secondary">{timestamp}</div>
+            <div className="flex items-center gap-1.5 text-xs text-text-secondary mt-0.5">
+              <Clock className="w-3 h-3" />
+              {timestamp}
+            </div>
+          </div>
+          <div className="text-xs text-text-secondary">
+            IP: {log.ip_address || 'Unknown'}
           </div>
         </div>
 
@@ -68,17 +81,17 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
           </div>
         )}
 
-        {/* Campos principales — Player */}
+        {/* Player - Compatibilidad: player.* o directo */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <Field label="UserId" value={String(player.userid || '-')} />
-          <Field label="Username" value={String(player.username || '-')} />
-          <Field label="Display Name" value={String(player.displayname || '-')} />
-          <Field label="Account Age" value={String(player.accountage || '-')} />
-          <Field label="Membership" value={String(player.membership || '-')} />
-          <Field label="Country" value={String(player.country || '-')} />
-          {player.team && <Field label="Team" value={String(player.team)} />}
-          {player.teamcolor && <Field label="Team Color" value={String(player.teamcolor)} />}
-          {player.neutral !== undefined && <Field label="Neutral" value={String(player.neutral)} />}
+          <Field label="UserId" value={String(getPlayerField('userid') || '-')} />
+          <Field label="Username" value={String(getPlayerField('username') || '-')} />
+          <Field label="Display Name" value={String(getPlayerField('displayname') || '-')} />
+          <Field label="Account Age" value={String(getPlayerField('accountage') || '-')} />
+          <Field label="Membership" value={String(getPlayerField('membership') || '-')} />
+          <Field label="Country" value={String(getPlayerField('country') || '-')} />
+          {getPlayerField('team') && <Field label="Team" value={String(getPlayerField('team'))} />}
+          {getPlayerField('teamcolor') && <Field label="Team Color" value={String(getPlayerField('teamcolor'))} />}
+          {getPlayerField('neutral') !== undefined && <Field label="Neutral" value={String(getPlayerField('neutral'))} />}
         </div>
 
         {/* Character */}
@@ -109,7 +122,7 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
           </div>
         )}
 
-        {/* Seccion Game */}
+        {/* Game */}
         {game.placeid && (
           <div className="mb-3">
             <div className="flex items-center gap-2 mb-2">
@@ -159,7 +172,7 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
           </div>
         )}
 
-        {/* Seccion Device */}
+        {/* Device */}
         {device.os && (
           <div className="mb-3">
             <div className="flex items-center gap-2 mb-2">
@@ -186,9 +199,6 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
               Source: {String(p.source || 'unknown')}
             </span>
           </div>
-          <span className="text-xs text-text-secondary">
-            IP: {log.ip_address || 'Unknown'}
-          </span>
         </div>
       </div>
     </div>
