@@ -194,7 +194,7 @@ local URLInput = createTextBox(URLFrame, {
   BackgroundColor3 = Colors.Background,
   BorderSizePixel = 0,
   Text = "",
-  PlaceholderText = "https://webhookpulse.netlify.app/.netlify/functions/webhook-receive?path=...",
+  PlaceholderText = "https://tu-app.vercel.app/api/webhook-receive?path=...",
   TextColor3 = Colors.TextPrimary,
   PlaceholderColor3 = Colors.TextSecondary,
   Font = Enum.Font.Gotham,
