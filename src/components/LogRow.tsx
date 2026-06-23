@@ -17,8 +17,11 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
 
   const isRoblox = log.payload?.source === 'roblox'
   const player = log.payload?.player as Record<string, unknown> | undefined
+  // Flat-payload fallback: old logs sent username/userid at root level, v2 nests them under player.*
+  const username = player?.username ?? log.payload?.username
+  const userid = player?.userid ?? log.payload?.userid
   const previewText = isRoblox
-    ? `Roblox: ${player?.username || 'unknown'} (UID: ${player?.userid || '-'})`
+    ? `Roblox: ${String(username || '-')} (UID: ${String(userid || '-')})`
     : JSON.stringify(log.payload).substring(0, 80)
   const previewTruncated = isRoblox
     ? false
