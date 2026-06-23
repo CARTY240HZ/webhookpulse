@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -21,14 +20,6 @@ function corsHeaders() {
   }
 }
 
-function jsonResponse(statusCode: number, body: unknown) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    body: JSON.stringify(body),
-  }
-}
-
 async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return null
@@ -46,33 +37,28 @@ function generateSlug(name: string): string {
   return `${base}-${rand}`
 }
 
-export const handler: Handler = async (event: HandlerEvent, _context: HandlerContext) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders() }
+export default async function handler(req: any, res: any) {
+  if (req.method === 'OPTIONS') {
+    res.set(corsHeaders())
+    return res.status(204).end()
   }
 
-  if (event.httpMethod !== 'POST') {
-    return jsonResponse(405, { error: 'Method not allowed' })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const supabase = getSupabase()
-    const authHeader = event.headers.authorization || ''
+    const authHeader = req.headers.authorization || ''
     const user = await getUserFromJWT(supabase, authHeader)
     if (!user) {
-      return jsonResponse(401, { error: 'Unauthorized' })
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    let body: Record<string, unknown> = {}
-    try {
-      body = event.body ? JSON.parse(event.body) : {}
-    } catch {
-      return jsonResponse(400, { error: 'Invalid JSON body' })
-    }
-
+    const body = req.body || {}
     const name = (body.name as string) || ''
     if (!name || name.trim().length === 0) {
-      return jsonResponse(400, { error: 'Name is required' })
+      return res.status(400).json({ error: 'Name is required' })
     }
 
     const urlPath = generateSlug(name)
@@ -90,11 +76,11 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .single()
 
     if (error) {
-      return jsonResponse(500, { error: 'Failed to create webhook', details: error.message })
+      return res.status(500).json({ error: 'Failed to create webhook', details: error.message })
     }
 
-    return jsonResponse(201, { webhook })
+    return res.status(201).json({ webhook })
   } catch (err) {
-    return jsonResponse(500, { error: 'Internal error', details: (err as Error).message })
+    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
   }
 }

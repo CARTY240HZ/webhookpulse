@@ -12,7 +12,7 @@ interface WebhookCardProps {
 export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }: WebhookCardProps) {
   const [copied, setCopied] = useState(false)
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const fullUrl = `${baseUrl}/.netlify/functions/webhook-receive?path=${webhook.url_path}`
+  const fullUrl = `${baseUrl}/api/webhook-receive?path=${webhook.url_path}`
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation()

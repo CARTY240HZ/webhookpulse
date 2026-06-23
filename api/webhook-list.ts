@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -21,14 +20,6 @@ function corsHeaders() {
   }
 }
 
-function jsonResponse(statusCode: number, body: unknown) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    body: JSON.stringify(body),
-  }
-}
-
 async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return null
@@ -37,21 +28,22 @@ async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   return data.user
 }
 
-export const handler: Handler = async (event: HandlerEvent, _context: HandlerContext) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders() }
+export default async function handler(req: any, res: any) {
+  if (req.method === 'OPTIONS') {
+    res.set(corsHeaders())
+    return res.status(204).end()
   }
 
-  if (event.httpMethod !== 'GET') {
-    return jsonResponse(405, { error: 'Method not allowed' })
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const supabase = getSupabase()
-    const authHeader = event.headers.authorization || ''
+    const authHeader = req.headers.authorization || ''
     const user = await getUserFromJWT(supabase, authHeader)
     if (!user) {
-      return jsonResponse(401, { error: 'Unauthorized' })
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
     const { data: webhooks, error } = await supabase
@@ -61,7 +53,7 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .order('created_at', { ascending: false })
 
     if (error) {
-      return jsonResponse(500, { error: 'Failed to fetch webhooks', details: error.message })
+      return res.status(500).json({ error: 'Failed to fetch webhooks', details: error.message })
     }
 
     const enriched = (webhooks || []).map((w: Record<string, unknown>) => ({
@@ -69,8 +61,8 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       log_count: (w.webhook_logs as { count: number }[])?.[0]?.count ?? 0,
     }))
 
-    return jsonResponse(200, { webhooks: enriched })
+    return res.status(200).json({ webhooks: enriched })
   } catch (err) {
-    return jsonResponse(500, { error: 'Internal error', details: (err as Error).message })
+    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
   }
 }

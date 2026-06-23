@@ -20,7 +20,7 @@ export default function WebhookDetailPage() {
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const fullUrl = webhook ? `${baseUrl}/.netlify/functions/webhook-receive?path=${webhook.url_path}` : ''
+  const fullUrl = webhook ? `${baseUrl}/api/webhook-receive?path=${webhook.url_path}` : ''
 
   const handleCopy = async () => {
     try {

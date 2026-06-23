@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -21,14 +20,6 @@ function corsHeaders() {
   }
 }
 
-function jsonResponse(statusCode: number, body: unknown) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    body: JSON.stringify(body),
-  }
-}
-
 async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return null
@@ -37,26 +28,27 @@ async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   return data.user
 }
 
-export const handler: Handler = async (event: HandlerEvent, _context: HandlerContext) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders() }
+export default async function handler(req: any, res: any) {
+  if (req.method === 'OPTIONS') {
+    res.set(corsHeaders())
+    return res.status(204).end()
   }
 
-  if (event.httpMethod !== 'GET' && event.httpMethod !== 'DELETE') {
-    return jsonResponse(405, { error: 'Method not allowed' })
+  if (req.method !== 'GET' && req.method !== 'DELETE') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const supabase = getSupabase()
-    const authHeader = event.headers.authorization || ''
+    const authHeader = req.headers.authorization || ''
     const user = await getUserFromJWT(supabase, authHeader)
     if (!user) {
-      return jsonResponse(401, { error: 'Unauthorized' })
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    const webhookId = event.queryStringParameters?.webhookId || ''
+    const webhookId = req.query?.webhookId || ''
     if (!webhookId) {
-      return jsonResponse(400, { error: 'Missing webhookId' })
+      return res.status(400).json({ error: 'Missing webhookId' })
     }
 
     const { data: webhook, error: ownerError } = await supabase
@@ -67,11 +59,11 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .single()
 
     if (ownerError || !webhook) {
-      return jsonResponse(404, { error: 'Webhook not found' })
+      return res.status(404).json({ error: 'Webhook not found' })
     }
 
-    if (event.httpMethod === 'DELETE') {
-      const body = event.body ? JSON.parse(event.body) : {}
+    if (req.method === 'DELETE') {
+      const body = req.body || {}
       const logIds = body.logIds || []
       const deleteAll = body.deleteAll === true
 
@@ -81,13 +73,13 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
           .delete()
           .eq('webhook_id', webhookId)
         if (delError) {
-          return jsonResponse(500, { error: 'Failed to delete logs', details: delError.message })
+          return res.status(500).json({ error: 'Failed to delete logs', details: delError.message })
         }
-        return jsonResponse(200, { success: true, deleted: 'all' })
+        return res.status(200).json({ success: true, deleted: 'all' })
       }
 
       if (logIds.length === 0) {
-        return jsonResponse(400, { error: 'No logIds provided' })
+        return res.status(400).json({ error: 'No logIds provided' })
       }
 
       const { error: delError } = await supabase
@@ -96,9 +88,9 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
         .in('id', logIds)
         .eq('webhook_id', webhookId)
       if (delError) {
-        return jsonResponse(500, { error: 'Failed to delete logs', details: delError.message })
+        return res.status(500).json({ error: 'Failed to delete logs', details: delError.message })
       }
-      return jsonResponse(200, { success: true, deleted: logIds.length })
+      return res.status(200).json({ success: true, deleted: logIds.length })
     }
 
     const { data: logs, error } = await supabase
@@ -109,11 +101,11 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .limit(200)
 
     if (error) {
-      return jsonResponse(500, { error: 'Failed to fetch logs', details: error.message })
+      return res.status(500).json({ error: 'Failed to fetch logs', details: error.message })
     }
 
-    return jsonResponse(200, { logs: logs || [] })
+    return res.status(200).json({ logs: logs || [] })
   } catch (err) {
-    return jsonResponse(500, { error: 'Internal error', details: (err as Error).message })
+    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
   }
 }

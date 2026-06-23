@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -21,14 +20,6 @@ function corsHeaders() {
   }
 }
 
-function jsonResponse(statusCode: number, body: unknown) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    body: JSON.stringify(body),
-  }
-}
-
 async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return null
@@ -37,26 +28,27 @@ async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
   return data.user
 }
 
-export const handler: Handler = async (event: HandlerEvent, _context: HandlerContext) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders() }
+export default async function handler(req: any, res: any) {
+  if (req.method === 'OPTIONS') {
+    res.set(corsHeaders())
+    return res.status(204).end()
   }
 
-  if (event.httpMethod !== 'DELETE') {
-    return jsonResponse(405, { error: 'Method not allowed' })
+  if (req.method !== 'DELETE') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const supabase = getSupabase()
-    const authHeader = event.headers.authorization || ''
+    const authHeader = req.headers.authorization || ''
     const user = await getUserFromJWT(supabase, authHeader)
     if (!user) {
-      return jsonResponse(401, { error: 'Unauthorized' })
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    const id = event.queryStringParameters?.id || ''
+    const id = req.query?.id || ''
     if (!id) {
-      return jsonResponse(400, { error: 'Missing id' })
+      return res.status(400).json({ error: 'Missing id' })
     }
 
     const { data: webhook, error: findError } = await supabase
@@ -67,17 +59,17 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .single()
 
     if (findError || !webhook) {
-      return jsonResponse(404, { error: 'Webhook not found' })
+      return res.status(404).json({ error: 'Webhook not found' })
     }
 
     const { error: deleteError } = await supabase.from('webhooks').delete().eq('id', id)
 
     if (deleteError) {
-      return jsonResponse(500, { error: 'Failed to delete webhook', details: deleteError.message })
+      return res.status(500).json({ error: 'Failed to delete webhook', details: deleteError.message })
     }
 
-    return jsonResponse(200, { success: true })
+    return res.status(200).json({ success: true })
   } catch (err) {
-    return jsonResponse(500, { error: 'Internal error', details: (err as Error).message })
+    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
   }
 }

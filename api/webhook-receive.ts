@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -21,28 +20,21 @@ function corsHeaders() {
   }
 }
 
-function jsonResponse(statusCode: number, body: unknown) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    body: JSON.stringify(body),
-  }
-}
-
-export const handler: Handler = async (event: HandlerEvent, _context: HandlerContext) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders() }
+export default async function handler(req: any, res: any) {
+  if (req.method === 'OPTIONS') {
+    res.set(corsHeaders())
+    return res.status(204).end()
   }
 
-  if (event.httpMethod !== 'POST') {
-    return jsonResponse(405, { error: 'Method not allowed' })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
     const supabase = getSupabase()
-    const path = event.queryStringParameters?.path || ''
+    const path = req.query?.path || ''
     if (!path) {
-      return jsonResponse(400, { error: 'Missing path parameter' })
+      return res.status(400).json({ error: 'Missing path parameter' })
     }
 
     const { data: webhook, error: findError } = await supabase
@@ -52,26 +44,26 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .single()
 
     if (findError || !webhook) {
-      return jsonResponse(404, { error: 'Webhook not found' })
+      return res.status(404).json({ error: 'Webhook not found' })
     }
 
     if (!webhook.is_active) {
-      return jsonResponse(403, { error: 'Webhook is inactive' })
+      return res.status(403).json({ error: 'Webhook is inactive' })
     }
 
-    const providedSecret = event.headers['x-webhook-secret'] || ''
+    const providedSecret = req.headers['x-webhook-secret'] || ''
     if (webhook.secret && providedSecret !== webhook.secret) {
-      return jsonResponse(401, { error: 'Invalid secret' })
+      return res.status(401).json({ error: 'Invalid secret' })
     }
 
     let payload: unknown = null
     try {
-      payload = event.body ? JSON.parse(event.body) : null
+      payload = req.body ? (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) : null
     } catch {
-      payload = event.body
+      payload = req.body
     }
 
-    const rawIp = event.headers['x-forwarded-for'] || event.headers['client-ip'] || null
+    const rawIp = req.headers['x-forwarded-for'] || req.headers['client-ip'] || null
     const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
 
     let insertResult = await supabase
@@ -79,7 +71,7 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
       .insert({
         webhook_id: webhook.id,
         payload: payload ?? {},
-        headers: event.headers as Record<string, string>,
+        headers: req.headers as Record<string, string>,
         ip_address: ipAddress,
       })
       .select('id')
@@ -91,7 +83,7 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
         .insert({
           webhook_id: webhook.id,
           payload: payload ?? {},
-          headers: event.headers as Record<string, string>,
+          headers: req.headers as Record<string, string>,
           ip_address: null,
         })
         .select('id')
@@ -99,11 +91,11 @@ export const handler: Handler = async (event: HandlerEvent, _context: HandlerCon
     }
 
     if (insertResult.error) {
-      return jsonResponse(500, { error: 'Failed to store log', details: insertResult.error.message })
+      return res.status(500).json({ error: 'Failed to store log', details: insertResult.error.message })
     }
 
-    return jsonResponse(200, { success: true, logId: insertResult.data.id })
+    return res.status(200).json({ success: true, logId: insertResult.data.id })
   } catch (err) {
-    return jsonResponse(500, { error: 'Internal error', details: (err as Error).message })
+    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
   }
 }
