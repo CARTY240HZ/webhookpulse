@@ -2,7 +2,8 @@
 
 ## Contexto
 
-WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `872cbed`) agrego:
+WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `c5d0bed`) agrego:
+- **Tests**: Vitest + unit tests para `_lib/` (validate, cors, hmac) + integration test para `webhook-receive`
 - **Shared Infrastructure**: `api/_lib/` con 8 modulos reutilizables (supabase, cors, auth, validate, ratelimit, hmac, errors, sentry)
 - **Security Hardening**: 12 fixes completos (HMAC secrets, rate limit, body cap, CORS, headers filter, UUID validation, honeypot, webhook limit, DB index)
 - **CSV Export**: `api/webhook-export.ts` + boton en frontend
@@ -23,7 +24,7 @@ WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `872cbed`) a
 | 6 | Stats Dashboard (Graficos) | ✅ Hecho | `ffd14d9` |
 | 7 | Shared Infrastructure (`api/_lib/`) | ✅ Hecho | `251dcf0` |
 | 8 | Security Hardening (12 fixes) | ✅ Hecho | `251dcf0` + `872cbed` |
-| 9 | Tests (Vitest) | ⏳ Pendiente | |
+| 9 | Tests (Vitest) | ✅ Hecho | `c5d0bed` |
 | 10 | Sentry (backend + frontend) | ⏳ Pendiente | |
 
 ---
@@ -54,7 +55,7 @@ WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `872cbed`) a
 | 1+2 | `api/_lib/` + refactor 6 endpoints + S1/S3/S4/S5/S7/S8/S10/S11/S12 | ✅ Hecho | `251dcf0` |
 | 3 | S2 (HMAC secrets) + S6 (index) + migracion SQL + endpoint `migrate-secrets` | ✅ Hecho | `872cbed` |
 | 4 | S7 (export cap) + S9 (webhook limit) | ✅ Hecho | `872cbed` |
-| 5 | Tests (vitest + unit + integration) | ⏳ Pendiente | |
+| 5 | Tests (vitest + unit + integration) | ✅ Hecho | `c5d0bed` |
 | 6 | Sentry (backend + frontend) | ⏳ Pendiente | |
 
 ---
