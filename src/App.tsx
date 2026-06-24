@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Layout from './components/Layout'
 import LandingPage from './pages/LandingPage'
@@ -16,6 +17,7 @@ function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <SpeedInsights />
     </AuthProvider>
   )
 }
