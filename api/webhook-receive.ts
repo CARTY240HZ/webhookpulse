@@ -44,8 +44,7 @@ export default async function handler(req: any, res: any) {
     // 1. Validate path format
     const path = req.query?.path || ''
     if (!path || !isValidPath(String(path))) {
-      console.log(`[webhook-receive] HONEYPOT: invalid path format, path="${path}"`)
-      return res.status(200).json({ received: true, reason: 'invalid_path' })
+      return res.status(200).json({ received: true })
     }
 
     // 2. Body size limit
@@ -91,15 +90,11 @@ export default async function handler(req: any, res: any) {
 
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
-      console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${pathStr}", total_fetched=${allWebhooks?.length || 0}, findError=${JSON.stringify(findError)}`)
-      return res.status(200).json({ received: true, reason: 'webhook_not_found', total_fetched: allWebhooks?.length || 0, paths: (allWebhooks || []).map((h: any) => h.url_path), findError: findError ? findError.message : null, v: 'js-filter-5' })
+      return res.status(200).json({ received: true })
     }
 
-    console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
-
     if (!webhook.is_active) {
-      console.log(`[webhook-receive] HONEYPOT: webhook inactive, path="${path}"`)
-      return res.status(200).json({ received: true, reason: 'webhook_inactive' })
+      return res.status(200).json({ received: true })
     }
 
     // 6. Check secret (S2: HMAC verification, backward-compatible)
@@ -118,8 +113,7 @@ export default async function handler(req: any, res: any) {
     }
     
     if (!secretValid) {
-      console.log(`[webhook-receive] HONEYPOT: secret mismatch, path="${path}", hasSecretPlain=${hasSecretPlain}, provided=${!!providedSecret}`)
-      return res.status(200).json({ received: true, reason: 'secret_mismatch' })
+      return res.status(200).json({ received: true })
     }
 
     // 7. Rate limiting

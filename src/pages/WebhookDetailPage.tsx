@@ -18,6 +18,7 @@ export default function WebhookDetailPage() {
   const [batchDeleting, setBatchDeleting] = useState(false)
 
   const [exporting, setExporting] = useState(false)
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   const handleExport = async () => {
     if (!id) return
@@ -54,13 +55,13 @@ export default function WebhookDetailPage() {
   }
 
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
+  const isDiscord = webhook?.has_secret && !!webhook.discord_url
+  const typeLabel = isDiscord ? 'Discord' : 'Native'
+  const typeColor = isDiscord ? 'bg-blue-500/10 text-blue-400' : 'bg-accent/10 text-accent'
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const fullUrl = webhook ? `${baseUrl}/api/webhook-receive?path=${webhook.url_path}` : ''
-
-  const handleCopy = async () => {
+  const handleCopy = async (url: string) => {
     try {
-      await navigator.clipboard.writeText(fullUrl)
+      await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -170,7 +171,10 @@ export default function WebhookDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-4">
+            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${typeColor}`}>
+              {typeLabel}
+            </span>
             {webhook.is_active ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-success/10 text-success">
                 <span className="w-1.5 h-1.5 rounded-full bg-success" />
@@ -183,20 +187,42 @@ export default function WebhookDetailPage() {
               </span>
             )}
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-4">
-          <code className="text-sm text-text-secondary truncate flex-1">{fullUrl}</code>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </div>
+          {/* Native URL */}
+          {webhook.native_url && (
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-3">
+              <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold shrink-0">
+                Native
+              </span>
+              <code className="text-sm text-text-secondary truncate flex-1">{webhook.native_url}</code>
+              <button
+                onClick={() => handleCopy(webhook.native_url!)}
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
 
-        <div className="flex items-center gap-3">
+          {/* Discord URL */}
+          {webhook.discord_url && (
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-4">
+              <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold shrink-0">
+                Discord
+              </span>
+              <code className="text-sm text-text-secondary truncate flex-1">{webhook.discord_url}</code>
+              <button
+                onClick={() => handleCopy(webhook.discord_url!)}
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
           <button
             onClick={handleToggle}
             className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"

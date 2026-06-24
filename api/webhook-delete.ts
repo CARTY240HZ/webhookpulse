@@ -1,5 +1,5 @@
 import { getSupabase } from './_lib/supabase.js'
-import { getCorsHeaders } from './_lib/cors.js'
+import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { isValidUUID } from './_lib/validate.js'
 import { apiError } from './_lib/errors.js'
@@ -7,7 +7,7 @@ import { captureException } from './_lib/sentry.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    res.set(getCorsHeaders('private'))
+    setCorsHeaders(res, 'private')
     return res.status(204).end()
   }
 

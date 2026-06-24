@@ -6,3 +6,10 @@ export function getCorsHeaders(type: 'public' | 'private') {
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   }
 }
+
+export function setCorsHeaders(res: any, type: 'public' | 'private'): void {
+  const headers = getCorsHeaders(type)
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value)
+  }
+}

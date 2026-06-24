@@ -1,5 +1,5 @@
 import { getSupabase } from './_lib/supabase.js'
-import { getCorsHeaders } from './_lib/cors.js'
+import { getCorsHeaders, setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { isValidUUID } from './_lib/validate.js'
 import { apiError } from './_lib/errors.js'
@@ -16,7 +16,7 @@ function escapeCsvCell(value: string): string {
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    res.set(getCorsHeaders('private'))
+    setCorsHeaders(res, 'private')
     return res.status(204).end()
   }
 
@@ -80,12 +80,10 @@ export default async function handler(req: any, res: any) {
     const csv = csvRows.join('\r\n')
     const truncated = (count || 0) > MAX_EXPORT_ROWS
 
-    res.set({
-      ...getCorsHeaders('private'),
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="webhook-logs-${webhookId}.csv"`,
-      ...(truncated ? { 'X-Truncated': 'true' } : {}),
-    })
+    setCorsHeaders(res, 'private')
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="webhook-logs-${webhookId}.csv"`)
+    if (truncated) res.setHeader('X-Truncated', 'true')
 
     return res.status(200).send(csv)
   } catch (err) {

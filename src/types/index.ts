@@ -16,6 +16,9 @@ export interface Webhook {
   created_at: string
   updated_at: string
   log_count?: number
+  has_secret?: boolean
+  discord_url?: string | null
+  native_url?: string
 }
 
 export interface WebhookLog {

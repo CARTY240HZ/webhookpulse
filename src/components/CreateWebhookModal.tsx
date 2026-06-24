@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { X, Plus, Zap, MessageSquare } from 'lucide-react'
 import type { Webhook } from '../types'
 
+type CreateResult = Webhook & { native_url: string; discord_url?: string; token?: string }
+
 interface CreateWebhookModalProps {
   onClose: () => void
-  onCreate: (name: string, description?: string, type: 'native' | 'discord') => Promise<Webhook>
+  onCreate: (name: string, description?: string, type: 'native' | 'discord') => Promise<CreateResult>
 }
 
 export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookModalProps) {
@@ -13,7 +15,7 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
   const [type, setType] = useState<'native' | 'discord'>('native')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<Webhook | null>(null)
+  const [result, setResult] = useState<CreateResult | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,10 +51,10 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                   <label className="text-xs text-text-secondary">Native URL</label>
                   <div className="flex gap-2">
                     <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
-                      {(result as any).native_url}
+                      {result.native_url}
                     </code>
                     <button
-                      onClick={() => navigator.clipboard.writeText((result as any).native_url)}
+                      onClick={() => navigator.clipboard.writeText(result.native_url)}
                       className="text-xs text-accent hover:text-accent-hover"
                     >
                       Copy

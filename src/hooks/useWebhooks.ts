@@ -12,20 +12,26 @@ export function useWebhooks() {
   const fetchWebhooks = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const { data, error: supaError } = await supabase
-      .from('webhooks')
-      .select('*, webhook_logs(count)')
-      .order('created_at', { ascending: false })
-
-    if (supaError) {
-      setError(supaError.message)
+    const { data: authData } = await supabase.auth.getSession()
+    const session = authData?.session
+    if (!session) {
+      setError('Not authenticated')
       setWebhooks([])
-    } else {
-      const enriched = (data || []).map((w: Record<string, unknown>) => ({
-        ...w,
-        log_count: (w.webhook_logs as { count: number }[])?.[0]?.count ?? 0,
-      })) as Webhook[]
-      setWebhooks(enriched)
+      setLoading(false)
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/webhook-list`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch webhooks')
+      }
+      setWebhooks(data.webhooks || [])
+    } catch (err) {
+      setError((err as Error).message)
+      setWebhooks([])
     }
     setLoading(false)
   }, [])
@@ -35,7 +41,8 @@ export function useWebhooks() {
   }, [fetchWebhooks])
 
   const createWebhook = async (name: string, description?: string, type: 'native' | 'discord' = 'native') => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: authData } = await supabase.auth.getSession()
+    const session = authData?.session
     if (!session) throw new Error('Not authenticated')
 
     const res = await fetch(`${API_BASE}/api/webhook-create`, {
@@ -53,7 +60,8 @@ export function useWebhooks() {
     }
 
     await fetchWebhooks()
-    return data.webhook as Webhook
+    // Return full response so callers can access native_url, discord_url, token
+    return data as Webhook & { native_url: string; discord_url?: string; token?: string }
   }
 
   const deleteWebhook = async (id: string) => {

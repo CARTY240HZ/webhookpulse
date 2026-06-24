@@ -1,12 +1,12 @@
 import { getSupabase } from './_lib/supabase.js'
-import { getCorsHeaders } from './_lib/cors.js'
+import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    res.set(getCorsHeaders('private'))
+    setCorsHeaders(res, 'private')
     return res.status(204).end()
   }
 
@@ -41,8 +41,10 @@ export default async function handler(req: any, res: any) {
       const hasSecret = secret !== '' && secret !== 'null' && secret.length >= 32
       const discordUrl = hasSecret ? `${baseUrl}/api/webhooks/${w.id}/${secret}` : null
       const nativeUrl = `${baseUrl}/api/webhook-receive?path=${w.url_path}`
+      // Exclude plaintext secret from response — never send it after creation
+      const { secret: _secret, ...rest } = w
       return {
-        ...w,
+        ...rest,
         log_count: (w.webhook_logs as { count: number }[])?.[0]?.count ?? 0,
         has_secret: hasSecret,
         discord_url: discordUrl,

@@ -9,21 +9,39 @@ interface WebhookCardProps {
   onNavigate?: (id: string) => void
 }
 
-export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }: WebhookCardProps) {
+function CopyUrl({ url, label }: { url: string; label: string }) {
   const [copied, setCopied] = useState(false)
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const fullUrl = `${baseUrl}/api/webhook-receive?path=${webhook.url_path}`
-
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      await navigator.clipboard.writeText(fullUrl)
+      await navigator.clipboard.writeText(url)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
       // ignore
     }
   }
+  return (
+    <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2">
+      <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold shrink-0">
+        {label}
+      </span>
+      <code className="text-sm text-text-secondary truncate flex-1">{url}</code>
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0"
+      >
+        <Copy className="w-3.5 h-3.5" />
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+    </div>
+  )
+}
+
+export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }: WebhookCardProps) {
+  const isDiscord = webhook.has_secret && !!webhook.discord_url
+  const typeLabel = isDiscord ? 'Discord' : 'Native'
+  const typeColor = isDiscord ? 'bg-blue-500/10 text-blue-400' : 'bg-accent/10 text-accent'
 
   return (
     <div className="flex rounded-lg overflow-hidden bg-elevated border border-border transition-all duration-150 hover:border-text-secondary/30">
@@ -31,7 +49,7 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
       <div className="w-1 shrink-0 bg-accent" />
 
       <div className="flex-1 p-5">
-        {/* Header: Nombre + Estado */}
+        {/* Header: Nombre + Tipo + Estado */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center">
@@ -52,7 +70,10 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
               )}
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${typeColor}`}>
+              {typeLabel}
+            </span>
             {webhook.is_active ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-success/10 text-success">
                 <span className="w-1.5 h-1.5 rounded-full bg-success" />
@@ -67,16 +88,19 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
           </div>
         </div>
 
-        {/* URL del webhook */}
-        <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-5">
-          <code className="text-sm text-text-secondary truncate flex-1">{fullUrl}</code>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            {copied ? 'Copied' : 'Copy'}
-          </button>
+        {/* URLs del webhook */}
+        <div className="flex flex-col gap-2 mb-5">
+          {webhook.native_url && (
+            <CopyUrl url={webhook.native_url} label="Native" />
+          )}
+          {webhook.discord_url && (
+            <CopyUrl url={webhook.discord_url} label="Discord" />
+          )}
+          {!webhook.native_url && !webhook.discord_url && (
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2">
+              <span className="text-sm text-text-secondary">No URL available</span>
+            </div>
+          )}
         </div>
 
         {/* Embed body: Mensajes recibidos */}
@@ -104,7 +128,7 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
               Secret
             </span>
             <span className="text-sm text-text-primary">
-              {(webhook as any).has_secret ? 'Si' : 'No'}
+              {webhook.has_secret ? 'Si' : 'No'}
             </span>
           </div>
         </div>
