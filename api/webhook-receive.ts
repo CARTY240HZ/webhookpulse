@@ -95,7 +95,10 @@ export default async function handler(req: any, res: any) {
     if (findError || !webhook) {
       console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${path}"`)
       console.log(`[webhook-receive] DEBUG findError=${JSON.stringify(findError)}`)
-      return res.status(200).json({ received: true, reason: 'webhook_not_found' })
+      // TEMP: Count total webhooks to diagnose if table is empty or path mismatch
+      const { count: totalWebhooks } = await supabase.from('webhooks').select('id', { count: 'exact', head: true })
+      console.log(`[webhook-receive] DEBUG total_webhooks=${totalWebhooks}`)
+      return res.status(200).json({ received: true, reason: 'webhook_not_found', total_webhooks: totalWebhooks || 0 })
     }
 
     console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
