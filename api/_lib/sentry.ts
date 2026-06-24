@@ -32,8 +32,9 @@ export function setUserContext(userId: string): void {
 }
 
 export function captureException(err: Error): void {
+  initSentry()
   if (!initialized) {
-    console.error('[Sentry not initialized]', err)
+    console.error('[Sentry]', err)
     return
   }
   Sentry.captureException(err)

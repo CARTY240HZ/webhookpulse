@@ -19,12 +19,12 @@ const mockSupabase = {
   auth: { getUser: vi.fn() }
 }
 
-vi.mock('../../../api/_lib/supabase', () => ({
+vi.mock('../../api/_lib/supabase', () => ({
   getSupabase: () => mockSupabase
 }))
 
 // Import handler after mock
-import webhookReceive from '../../../api/webhook-receive'
+import webhookReceive from '../../api/webhook-receive'
 
 describe('webhook-receive integration', () => {
   beforeEach(() => {

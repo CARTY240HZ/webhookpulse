@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabase } from './supabase.js'
 import { setUserContext } from './sentry.js'
 

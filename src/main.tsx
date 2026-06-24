@@ -42,7 +42,7 @@ function ConfigError() {
             <li><code className="text-accent">VITE_SUPABASE_URL</code></li>
             <li><code className="text-accent">VITE_SUPABASE_ANON_KEY</code></li>
           </ul>
-          <p className="mt-2">Set these in your Netlify site settings under Environment variables.</p>
+          <p className="mt-2">Set these in your Vercel project settings under Environment variables.</p>
         </div>
       </div>
     </div>
