@@ -71,7 +71,7 @@ export default function SettingsPage() {
     }, 4000)
   }, [])
 
-  // Fetch settings
+  // Fetch settings with fallback to Supabase direct
   useEffect(() => {
     if (!user) return
     const fetchSettings = async () => {
@@ -86,9 +86,48 @@ export default function SettingsPage() {
         const data = await res.json()
         if (res.ok) {
           setSettings(data)
+        } else {
+          // Fallback: fetch from Supabase directly
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, created_at')
+            .eq('id', user.id)
+            .single()
+          setSettings({
+            email: user.email || '',
+            full_name: profileData?.full_name || '',
+            phone: '',
+            bio: '',
+            location: '',
+            website: '',
+            theme: 'dark',
+            notifications_enabled: true,
+            language: 'en',
+            created_at: profileData?.created_at || '',
+            updated_at: '',
+          })
+          showToast('Some features require migration 002. Run it in Supabase SQL Editor.', 'info')
         }
       } catch {
-        showToast('Failed to load settings', 'error')
+        // Network error: fallback to Supabase direct
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url, created_at')
+          .eq('id', user.id)
+          .single()
+        setSettings({
+          email: user.email || '',
+          full_name: profileData?.full_name || '',
+          phone: '',
+          bio: '',
+          location: '',
+          website: '',
+          theme: 'dark',
+          notifications_enabled: true,
+          language: 'en',
+          created_at: profileData?.created_at || '',
+          updated_at: '',
+        })
       } finally {
         setLoading(false)
       }

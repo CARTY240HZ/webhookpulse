@@ -23,24 +23,58 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 401, 'UNAUTHORIZED')
     }
 
-    // GET: fetch profile data
+    // GET: fetch profile data with fallback
     if (req.method === 'GET') {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, avatar_url, phone, bio, location, website, theme, notifications_enabled, language, created_at, updated_at')
-        .eq('id', user.id)
-        .single()
+      // Try full columns first (new schema)
+      let data: any = null
+      let error: any = null
+      
+      try {
+        const result = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url, phone, bio, location, website, theme, notifications_enabled, language, created_at, updated_at')
+          .eq('id', user.id)
+          .single()
+        data = result.data
+        error = result.error
+      } catch (e) {
+        // Fallback: try basic columns only (old schema)
+        const result = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url, created_at')
+          .eq('id', user.id)
+          .single()
+        data = result.data
+        error = result.error
+      }
 
       if (error) {
+        console.error('Profile fetch error:', error)
         return apiError(res, 500, 'PROFILE_FETCH_FAILED')
       }
 
-      // Get email from auth.users (admin only)
-      const { data: userData } = await supabase.auth.admin.getUserById(user.id)
-      const email = userData?.user?.email || ''
+      // Get email from auth.users (admin only, requires service_role)
+      let email = ''
+      try {
+        const { data: userData } = await supabase.auth.admin.getUserById(user.id)
+        email = userData?.user?.email || ''
+      } catch (e) {
+        // Fallback: email might be in the JWT payload
+        email = user.email || ''
+      }
 
       return res.status(200).json({
-        ...data,
+        full_name: data?.full_name || '',
+        avatar_url: data?.avatar_url || '',
+        phone: data?.phone || '',
+        bio: data?.bio || '',
+        location: data?.location || '',
+        website: data?.website || '',
+        theme: data?.theme || 'dark',
+        notifications_enabled: data?.notifications_enabled ?? true,
+        language: data?.language || 'en',
+        created_at: data?.created_at || '',
+        updated_at: data?.updated_at || '',
         email,
       })
     }
@@ -59,12 +93,29 @@ export default async function handler(req: any, res: any) {
           }
         }
 
+        // Try update, but some columns might not exist yet
         const { error } = await supabase
           .from('profiles')
           .update(updates)
           .eq('id', user.id)
 
         if (error) {
+          // If error is about missing column, try updating only basic fields
+          const basicUpdates: Record<string, unknown> = {}
+          if (body.full_name !== undefined) basicUpdates.full_name = body.full_name
+          
+          if (Object.keys(basicUpdates).length > 0) {
+            const { error: basicError } = await supabase
+              .from('profiles')
+              .update(basicUpdates)
+              .eq('id', user.id)
+            if (basicError) {
+              captureException(error)
+              return apiError(res, 500, 'PROFILE_UPDATE_FAILED')
+            }
+            return res.status(200).json({ success: true, partial: true, message: 'Profile partially updated. Run migration 002 for full features.' })
+          }
+          
           captureException(error)
           return apiError(res, 500, 'PROFILE_UPDATE_FAILED')
         }
