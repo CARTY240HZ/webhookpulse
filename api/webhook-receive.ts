@@ -43,7 +43,8 @@ export default async function handler(req: any, res: any) {
 
     // 1. Validate path format
     const path = req.query?.path || ''
-    console.log(`[webhook-receive] DEBUG: raw path="${path}", query keys=${Object.keys(req.query || {}).join(',')}`)
+    console.log(`[webhook-receive] DEBUG: raw path="${path}", type=${typeof path}, stringified=${JSON.stringify(path)}`)
+    console.log(`[webhook-receive] DEBUG: path char codes = ${Array.from(String(path)).map(c => c.charCodeAt(0)).join(',')}`)
     if (!path || !isValidPath(String(path))) {
       console.log(`[webhook-receive] HONEYPOT: invalid path format, path="${path}"`)
       return res.status(200).json({ received: true, reason: 'invalid_path' })
@@ -98,8 +99,12 @@ export default async function handler(req: any, res: any) {
       // TEMP: List existing paths to diagnose mismatch
       const { data: allHooks } = await supabase.from('webhooks').select('url_path')
       const existingPaths = (allHooks || []).map((h: any) => h.url_path)
+      const first = existingPaths[0] || ''
+      console.log(`[webhook-receive] DEBUG path===first? ${String(path) === String(first)}`)
+      console.log(`[webhook-receive] DEBUG path_char_codes=[${Array.from(String(path)).map(c => c.charCodeAt(0)).join(',')}]`)
+      console.log(`[webhook-receive] DEBUG first_char_codes=[${Array.from(String(first)).map(c => c.charCodeAt(0)).join(',')}]`)
       console.log(`[webhook-receive] DEBUG existing_paths=${JSON.stringify(existingPaths)}`)
-      return res.status(200).json({ received: true, reason: 'webhook_not_found', existing_paths: existingPaths })
+      return res.status(200).json({ received: true, reason: 'webhook_not_found', existing_paths: existingPaths, path_eq_first: String(path) === String(first) })
     }
 
     console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
