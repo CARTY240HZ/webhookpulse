@@ -198,7 +198,7 @@ export default function WebhookDetailPage() {
               <code className="text-sm text-text-secondary truncate flex-1">{webhook.native_url}</code>
               <button
                 onClick={() => handleCopy(webhook.native_url!)}
-                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0"
               >
                 <Copy className="w-3.5 h-3.5" />
                 {copied ? 'Copied' : 'Copy'}
@@ -215,7 +215,7 @@ export default function WebhookDetailPage() {
               <code className="text-sm text-text-secondary truncate flex-1">{webhook.discord_url}</code>
               <button
                 onClick={() => handleCopy(webhook.discord_url!)}
-                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0"
               >
                 <Copy className="w-3.5 h-3.5" />
                 {copied ? 'Copied' : 'Copy'}
