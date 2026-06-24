@@ -187,6 +187,7 @@ export default function WebhookDetailPage() {
               </span>
             )}
           </div>
+        </div>
 
           {/* Native URL */}
           {webhook.native_url && (
