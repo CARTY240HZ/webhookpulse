@@ -748,7 +748,7 @@ WURLBox.Position = UDim2.new(0, 0, 0, 72)
 WURLBox.BackgroundColor3 = Z.surface
 WURLBox.BorderSizePixel = 0
 WURLBox.Text = ""
-WURLBox.PlaceholderText = "https://webhookpulse.vercel.app/api/webhook-receive?path=..."
+WURLBox.PlaceholderText = "Native or Discord URL..."
 WURLBox.TextColor3 = Z.text
 WURLBox.PlaceholderColor3 = Z.text2
 WURLBox.Font = Enum.Font.Gotham
@@ -797,7 +797,7 @@ local WSecretLbl = Instance.new("TextLabel")
 WSecretLbl.Size = UDim2.new(1, 0, 0, 18)
 WSecretLbl.Position = UDim2.new(0, 0, 0, 178)
 WSecretLbl.BackgroundTransparency = 1
-WSecretLbl.Text = "Webhook Secret (opcional)"
+WSecretLbl.Text = "Secret (Native only, Discord uses URL token)"
 WSecretLbl.TextColor3 = Z.text2
 WSecretLbl.Font = Enum.Font.Gotham
 WSecretLbl.TextSize = 11
@@ -880,89 +880,226 @@ WTransmit.MouseButton1Click:Connect(function()
   local url = WURLBox.Text:match("^%s*(.-)%s*$")
   if url == "" then wLog("Error: URL vacia", Z.danger); return end
   
+  -- Detect URL type
+  local isDiscord = string.find(url, "/api/webhooks/") ~= nil
+  local isNative = string.find(url, "/api/webhook-receive") ~= nil
+  local urlType = isDiscord and "Discord" or (isNative and "Native" or "Generic")
+  wLog("Tipo de endpoint detectado: " .. urlType, Z.info)
+  
   wLog("Construyendo payload completo...", Z.info)
   
-  local payload = {
-    source = "roblox",
-    timestamp = os.time(),
-    executor = { name = safeCall(function() return identifyexecutor() end, "unknown") },
-  }
+  local payload
+  local headers = { ["Content-Type"] = "application/json" }
   
-  if currentMode == 1 or currentMode == 2 or currentMode == 4 then
-    payload.player = {
-      userid = LocalPlayer.UserId,
-      username = LocalPlayer.Name,
-      displayname = LocalPlayer.DisplayName,
-      accountage = LocalPlayer.AccountAge,
-      membership = tostring(LocalPlayer.MembershipType),
-      premium = safeCall(function() return LocalPlayer:IsInGroup(1) or false end, false),
-      verified = LocalPlayer.HasVerifiedBadge or false,
-      country = safeCall(function() return game.LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer) end, "unknown"),
-      team = (LocalPlayer.Team and LocalPlayer.Team.Name) or nil,
-      teamcolor = (LocalPlayer.TeamColor and tostring(LocalPlayer.TeamColor)) or nil,
-      neutral = LocalPlayer.Neutral,
-      characterappearanceid = LocalPlayer.CharacterAppearanceId or nil,
-      locale = safeCall(function() return game:GetService("LocalizationService").LocaleId end, "unknown"),
-    }
-  end
-  
-  if currentMode == 1 or currentMode == 3 then
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
-    payload.character = {
-      health = hum and hum.Health or nil,
-      maxhealth = hum and hum.MaxHealth or nil,
-      walkspeed = hum and hum.WalkSpeed or nil,
-      jumppower = hum and hum.JumpPower or nil,
-      humanoidstate = hum and tostring(hum:GetState()) or nil,
-      rigtype = hum and tostring(hum.RigType) or nil,
-      position = root and { x = math.floor(root.Position.X), y = math.floor(root.Position.Y), z = math.floor(root.Position.Z) } or nil,
-      velocity = root and { x = math.floor(root.Velocity.X), y = math.floor(root.Velocity.Y), z = math.floor(root.Velocity.Z) } or nil,
-    }
-  end
-  
-  if currentMode == 1 then
-    payload.game = {
-      placeid = game.PlaceId,
-      jobid = game.JobId,
-      gamename = safeCall(function() return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end, "Unknown"),
-      maxplayers = game.Players.MaxPlayers,
-      numplayers = #Players:GetPlayers(),
-      isloaded = game.IsLoaded,
-    }
-    payload.environment = {
-      timeofday = Lighting.TimeOfDay,
-      brightness = Lighting.Brightness,
-      clocktime = Lighting.ClockTime,
-      geographiclatitude = Lighting.GeographicLatitude,
-      isstudio = RunService:IsStudio(),
-      isclient = RunService:IsClient(),
-      isserver = RunService:IsServer(),
-    }
-    payload.device = {
-      os = tostring(UserInputService:GetPlatform()),
-      touchenabled = UserInputService.TouchEnabled,
-      mouseenabled = UserInputService.MouseEnabled,
-      keyboardenabled = UserInputService.KeyboardEnabled,
-      gamepadenabled = UserInputService.GamepadEnabled,
-      screenresolution = safeCall(function()
+  if isDiscord then
+    -- Discord-compatible payload with embeds
+    local embeds = {}
+    local now = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    
+    if currentMode == 1 or currentMode == 2 or currentMode == 4 then
+      local playerFields = {
+        { name = "UserId", value = tostring(LocalPlayer.UserId), inline = true },
+        { name = "Username", value = LocalPlayer.Name, inline = true },
+        { name = "DisplayName", value = LocalPlayer.DisplayName, inline = true },
+        { name = "AccountAge", value = tostring(LocalPlayer.AccountAge) .. " days", inline = true },
+        { name = "Membership", value = tostring(LocalPlayer.MembershipType), inline = true },
+        { name = "Verified", value = LocalPlayer.HasVerifiedBadge and "Yes" or "No", inline = true },
+      }
+      local country = safeCall(function() return game.LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer) end, "unknown")
+      local locale = safeCall(function() return game:GetService("LocalizationService").LocaleId end, "unknown")
+      table.insert(playerFields, { name = "Country", value = country, inline = true })
+      table.insert(playerFields, { name = "Locale", value = locale, inline = true })
+      if LocalPlayer.Team then
+        table.insert(playerFields, { name = "Team", value = LocalPlayer.Team.Name, inline = true })
+      end
+      table.insert(embeds, {
+        title = "Player Identity",
+        color = 0xD4E83A,
+        fields = playerFields,
+        footer = { text = "ZEX v7.0 | Roblox" },
+        timestamp = now,
+      })
+    end
+    
+    if currentMode == 1 or currentMode == 3 then
+      local char = LocalPlayer.Character
+      local hum = char and char:FindFirstChildOfClass("Humanoid")
+      local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+      local charFields = {
+        { name = "Health", value = hum and string.format("%.0f / %.0f", hum.Health, hum.MaxHealth) or "N/A", inline = true },
+        { name = "WalkSpeed", value = hum and tostring(hum.WalkSpeed) or "N/A", inline = true },
+        { name = "JumpPower", value = hum and tostring(hum.JumpPower) or "N/A", inline = true },
+        { name = "HumanoidState", value = hum and tostring(hum:GetState()) or "N/A", inline = true },
+        { name = "RigType", value = hum and tostring(hum.RigType) or "N/A", inline = true },
+      }
+      if root then
+        table.insert(charFields, { name = "Position", value = string.format("X:%d Y:%d Z:%d", math.floor(root.Position.X), math.floor(root.Position.Y), math.floor(root.Position.Z)), inline = true })
+      end
+      table.insert(embeds, {
+        title = "Character",
+        color = 0x59A6F6,
+        fields = charFields,
+        footer = { text = "ZEX v7.0 | Roblox" },
+        timestamp = now,
+      })
+    end
+    
+    if currentMode == 1 then
+      local gameFields = {
+        { name = "PlaceId", value = tostring(game.PlaceId), inline = true },
+        { name = "Game Name", value = safeCall(function() return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end, "Unknown"), inline = true },
+        { name = "MaxPlayers", value = tostring(game.Players.MaxPlayers), inline = true },
+        { name = "CurrentPlayers", value = tostring(#Players:GetPlayers()), inline = true },
+        { name = "IsLoaded", value = tostring(game.IsLoaded), inline = true },
+      }
+      table.insert(embeds, {
+        title = "Game Instance",
+        color = 0x22C55E,
+        fields = gameFields,
+        footer = { text = "ZEX v7.0 | Roblox" },
+        timestamp = now,
+      })
+      
+      local envFields = {
+        { name = "TimeOfDay", value = Lighting.TimeOfDay, inline = true },
+        { name = "Brightness", value = tostring(Lighting.Brightness), inline = true },
+        { name = "ClockTime", value = tostring(Lighting.ClockTime), inline = true },
+        { name = "IsStudio", value = tostring(RunService:IsStudio()), inline = true },
+      }
+      table.insert(embeds, {
+        title = "Environment",
+        color = 0xF59E0B,
+        fields = envFields,
+        footer = { text = "ZEX v7.0 | Roblox" },
+        timestamp = now,
+      })
+      
+      local res = safeCall(function()
         local cam = workspace.CurrentCamera
-        return cam and (math.floor(cam.ViewportSize.X) .. "x" .. math.floor(cam.ViewportSize.Y)) or nil
-      end, nil),
+        return cam and (math.floor(cam.ViewportSize.X) .. "x" .. math.floor(cam.ViewportSize.Y)) or "unknown"
+      end, "unknown")
+      local deviceFields = {
+        { name = "Platform", value = tostring(UserInputService:GetPlatform()), inline = true },
+        { name = "Touch", value = tostring(UserInputService.TouchEnabled), inline = true },
+        { name = "Mouse", value = tostring(UserInputService.MouseEnabled), inline = true },
+        { name = "Keyboard", value = tostring(UserInputService.KeyboardEnabled), inline = true },
+        { name = "Gamepad", value = tostring(UserInputService.GamepadEnabled), inline = true },
+        { name = "Resolution", value = res, inline = true },
+      }
+      table.insert(embeds, {
+        title = "Device",
+        color = 0xEF4444,
+        fields = deviceFields,
+        footer = { text = "ZEX v7.0 | Roblox" },
+        timestamp = now,
+      })
+    end
+    
+    if currentMode == 4 then
+      embeds = {{
+        title = "Player Summary",
+        color = 0xD4E83A,
+        fields = {
+          { name = "UserId", value = tostring(LocalPlayer.UserId), inline = true },
+          { name = "Username", value = LocalPlayer.Name, inline = true },
+        },
+        footer = { text = "ZEX v7.0 | Roblox" },
+        timestamp = now,
+      }}
+    end
+    
+    payload = {
+      content = "ZEX v7.0 data transmission",
+      username = "ZEX Transmitter",
+      embeds = embeds,
     }
-  end
-  
-  if currentMode == 4 then
-    payload = { source = "roblox", timestamp = os.time(), player = { userid = LocalPlayer.UserId, username = LocalPlayer.Name } }
+    
+    -- Discord uses token in URL, no X-Webhook-Secret header needed
+    -- but if user provided one, we ignore it for Discord
+  else
+    -- Native / Generic payload (original ZEX format)
+    payload = {
+      source = "roblox",
+      timestamp = os.time(),
+      executor = { name = safeCall(function() return identifyexecutor() end, "unknown") },
+    }
+    
+    if currentMode == 1 or currentMode == 2 or currentMode == 4 then
+      payload.player = {
+        userid = LocalPlayer.UserId,
+        username = LocalPlayer.Name,
+        displayname = LocalPlayer.DisplayName,
+        accountage = LocalPlayer.AccountAge,
+        membership = tostring(LocalPlayer.MembershipType),
+        premium = safeCall(function() return LocalPlayer:IsInGroup(1) or false end, false),
+        verified = LocalPlayer.HasVerifiedBadge or false,
+        country = safeCall(function() return game.LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer) end, "unknown"),
+        team = (LocalPlayer.Team and LocalPlayer.Team.Name) or nil,
+        teamcolor = (LocalPlayer.TeamColor and tostring(LocalPlayer.TeamColor)) or nil,
+        neutral = LocalPlayer.Neutral,
+        characterappearanceid = LocalPlayer.CharacterAppearanceId or nil,
+        locale = safeCall(function() return game:GetService("LocalizationService").LocaleId end, "unknown"),
+      }
+    end
+    
+    if currentMode == 1 or currentMode == 3 then
+      local char = LocalPlayer.Character
+      local hum = char and char:FindFirstChildOfClass("Humanoid")
+      local root = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+      payload.character = {
+        health = hum and hum.Health or nil,
+        maxhealth = hum and hum.MaxHealth or nil,
+        walkspeed = hum and hum.WalkSpeed or nil,
+        jumppower = hum and hum.JumpPower or nil,
+        humanoidstate = hum and tostring(hum:GetState()) or nil,
+        rigtype = hum and tostring(hum.RigType) or nil,
+        position = root and { x = math.floor(root.Position.X), y = math.floor(root.Position.Y), z = math.floor(root.Position.Z) } or nil,
+        velocity = root and { x = math.floor(root.Velocity.X), y = math.floor(root.Velocity.Y), z = math.floor(root.Velocity.Z) } or nil,
+      }
+    end
+    
+    if currentMode == 1 then
+      payload.game = {
+        placeid = game.PlaceId,
+        jobid = game.JobId,
+        gamename = safeCall(function() return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end, "Unknown"),
+        maxplayers = game.Players.MaxPlayers,
+        numplayers = #Players:GetPlayers(),
+        isloaded = game.IsLoaded,
+      }
+      payload.environment = {
+        timeofday = Lighting.TimeOfDay,
+        brightness = Lighting.Brightness,
+        clocktime = Lighting.ClockTime,
+        geographiclatitude = Lighting.GeographicLatitude,
+        isstudio = RunService:IsStudio(),
+        isclient = RunService:IsClient(),
+        isserver = RunService:IsServer(),
+      }
+      payload.device = {
+        os = tostring(UserInputService:GetPlatform()),
+        touchenabled = UserInputService.TouchEnabled,
+        mouseenabled = UserInputService.MouseEnabled,
+        keyboardenabled = UserInputService.KeyboardEnabled,
+        gamepadenabled = UserInputService.GamepadEnabled,
+        screenresolution = safeCall(function()
+          local cam = workspace.CurrentCamera
+          return cam and (math.floor(cam.ViewportSize.X) .. "x" .. math.floor(cam.ViewportSize.Y)) or nil
+        end, nil),
+      }
+    end
+    
+    if currentMode == 4 then
+      payload = { source = "roblox", timestamp = os.time(), player = { userid = LocalPlayer.UserId, username = LocalPlayer.Name } }
+    end
+    
+    -- Native uses X-Webhook-Secret header
+    local secret = WSecretBox.Text:match("^%s*(.-)%s*$")
+    if secret ~= "" then headers["X-Webhook-Secret"] = secret end
   end
   
   local body = HttpService:JSONEncode(payload)
-  wLog("Payload size: " .. tostring(#body) .. " bytes", Z.info)
-  
-  local headers = { ["Content-Type"] = "application/json" }
-  local secret = WSecretBox.Text:match("^%s*(.-)%s*$")
-  if secret ~= "" then headers["X-Webhook-Secret"] = secret end
+  wLog("Payload size: " .. tostring(#body) .. " bytes (" .. urlType .. ")", Z.info)
   
   local reqTable = { Url = url, Method = "POST", Headers = headers, Body = body }
   local success = false
@@ -973,6 +1110,11 @@ WTransmit.MouseButton1Click:Connect(function()
     local ok, res = pcall(function() return fn(reqTable) end)
     if ok and res then
       local parsed = parseResponse(res)
+      -- Discord returns 204 No Content on success (no body)
+      if isDiscord and parsed.status == 204 then
+        table.insert(attempts, name .. ": OK 204 [Discord success]")
+        return true
+      end
       if parsed.status >= 200 and parsed.status < 300 and parsed.isSuccess then
         table.insert(attempts, name .. ": OK " .. parsed.status .. " [success]")
         return true
@@ -1000,7 +1142,10 @@ WTransmit.MouseButton1Click:Connect(function()
     local ok, res = pcall(function() return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end)
     if ok then
       local parsed = parseResponse({ Body = res, StatusCode = 200 })
-      if parsed.isSuccess then
+      if isDiscord and parsed.status == 204 then
+        success = true
+        table.insert(attempts, "HttpService:PostAsync: OK 204 [Discord success]")
+      elseif parsed.isSuccess then
         success = true
         table.insert(attempts, "HttpService:PostAsync: OK 200 [success]")
       elseif parsed.isHoneypot then
@@ -1015,7 +1160,7 @@ WTransmit.MouseButton1Click:Connect(function()
   end
   
   if success then
-    wLog("EXITOSO. Datos guardados en WebhookPulse.", Z.success)
+    wLog("EXITOSO. Datos enviados a " .. urlType .. ".", Z.success)
     wLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.success)
   elseif #attempts > 0 and string.find(table.concat(attempts), "honeypot") then
     wLog("FALLIDO. El servidor rechazo la peticion (honeypot).", Z.danger)
