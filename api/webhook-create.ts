@@ -66,7 +66,6 @@ export default async function handler(req: any, res: any) {
         description: description || null,
         url_path: urlPath,
         secret: rawSecret || null,
-        secret_hash: secretHash,
       })
       .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
       .single()

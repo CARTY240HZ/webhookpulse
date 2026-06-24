@@ -35,18 +35,9 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'MIGRATION_FETCH_FAILED')
     }
 
-    let migrated = 0
-    for (const wh of webhooks || []) {
-      if (!wh.secret) continue
-      const hash = hashSecret(wh.secret)
-      const { error: updError } = await supabase
-        .from('webhooks')
-        .update({ secret_hash: hash })
-        .eq('id', wh.id)
-      if (!updError) migrated++
-    }
-
-    return res.status(200).json({ success: true, migrated })
+    // NOTE: secret_hash column doesn't exist in DB yet.
+    // Return info until the column is added via SQL migration.
+    return res.status(200).json({ success: true, migrated: 0, note: 'secret_hash column not ready — migration deferred' })
   } catch (err) {
     captureException(err as Error)
     return apiError(res, 500, 'INTERNAL_ERROR')
