@@ -1,9 +1,9 @@
-import { getSupabase } from './_lib/supabase'
-import { getCorsHeaders } from './_lib/cors'
-import { getUserFromJWT } from './_lib/auth'
-import { isValidUUID } from './_lib/validate'
-import { apiError } from './_lib/errors'
-import { captureException } from './_lib/sentry'
+import { getSupabase } from './_lib/supabase.js'
+import { getCorsHeaders } from './_lib/cors.js'
+import { getUserFromJWT } from './_lib/auth.js'
+import { isValidUUID } from './_lib/validate.js'
+import { apiError } from './_lib/errors.js'
+import { captureException } from './_lib/sentry.js'
 
 const MAX_EXPORT_ROWS = 10_000
 

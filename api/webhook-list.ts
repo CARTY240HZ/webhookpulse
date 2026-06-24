@@ -1,8 +1,8 @@
-import { getSupabase } from './_lib/supabase'
-import { getCorsHeaders } from './_lib/cors'
-import { getUserFromJWT } from './_lib/auth'
-import { apiError } from './_lib/errors'
-import { captureException } from './_lib/sentry'
+import { getSupabase } from './_lib/supabase.js'
+import { getCorsHeaders } from './_lib/cors.js'
+import { getUserFromJWT } from './_lib/auth.js'
+import { apiError } from './_lib/errors.js'
+import { captureException } from './_lib/sentry.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {

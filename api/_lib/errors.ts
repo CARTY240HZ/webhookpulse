@@ -1,4 +1,4 @@
-import { captureException } from './sentry'
+import { captureException } from './sentry.js'
 
 export function apiError(
   res: any,

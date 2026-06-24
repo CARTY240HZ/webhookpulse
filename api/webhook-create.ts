@@ -1,10 +1,10 @@
-import { getSupabase } from './_lib/supabase'
-import { getCorsHeaders } from './_lib/cors'
-import { getUserFromJWT } from './_lib/auth'
-import { validateWebhookInput, clampString } from './_lib/validate'
-import { hashSecret } from './_lib/hmac'
-import { apiError } from './_lib/errors'
-import { captureException } from './_lib/sentry'
+import { getSupabase } from './_lib/supabase.js'
+import { getCorsHeaders } from './_lib/cors.js'
+import { getUserFromJWT } from './_lib/auth.js'
+import { validateWebhookInput, clampString } from './_lib/validate.js'
+import { hashSecret } from './_lib/hmac.js'
+import { apiError } from './_lib/errors.js'
+import { captureException } from './_lib/sentry.js'
 
 function generateSlug(name: string): string {
   const base = name

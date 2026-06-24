@@ -15,7 +15,6 @@ export function initSentry(): void {
     environment: process.env.VERCEL_ENV || 'development',
     tracesSampleRate: 0.1,
     beforeSend(event) {
-      // Ignore expected HTTP errors (not bugs)
       const status = event.extra?.status as number | undefined
       if (status && [400, 401, 403, 404, 429].includes(status)) {
         return null
@@ -27,7 +26,7 @@ export function initSentry(): void {
   console.log('[Sentry] Initialized')
 }
 
-initSentry()
+export function setUserContext(userId: string): void {
   if (!initialized) return
   Sentry.setUser({ id: userId })
 }

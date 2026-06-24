@@ -1,10 +1,10 @@
-import { getSupabase } from './_lib/supabase'
-import { getCorsHeaders } from './_lib/cors'
-import { isValidPath } from './_lib/validate'
-import { checkRateLimit } from './_lib/ratelimit'
-import { apiError } from './_lib/errors'
-import { verifySecret } from './_lib/hmac'
-import { captureException } from './_lib/sentry'
+import { getSupabase } from './_lib/supabase.js'
+import { getCorsHeaders } from './_lib/cors.js'
+import { isValidPath } from './_lib/validate.js'
+import { checkRateLimit } from './_lib/ratelimit.js'
+import { apiError } from './_lib/errors.js'
+import { verifySecret } from './_lib/hmac.js'
+import { captureException } from './_lib/sentry.js'
 
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
 
