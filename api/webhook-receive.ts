@@ -46,7 +46,7 @@ export default async function handler(req: any, res: any) {
     console.log(`[webhook-receive] DEBUG: raw path="${path}", query keys=${Object.keys(req.query || {}).join(',')}`)
     if (!path || !isValidPath(String(path))) {
       console.log(`[webhook-receive] HONEYPOT: invalid path format, path="${path}"`)
-      return res.status(200).json({ received: true })
+      return res.status(200).json({ received: true, reason: 'invalid_path' })
     }
 
     console.log(`[webhook-receive] DEBUG: path is valid, proceeding with lookup`)
@@ -95,14 +95,14 @@ export default async function handler(req: any, res: any) {
     if (findError || !webhook) {
       console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${path}"`)
       console.log(`[webhook-receive] DEBUG findError=${JSON.stringify(findError)}`)
-      return res.status(200).json({ received: true })
+      return res.status(200).json({ received: true, reason: 'webhook_not_found' })
     }
 
     console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
 
     if (!webhook.is_active) {
       console.log(`[webhook-receive] HONEYPOT: webhook inactive, path="${path}"`)
-      return res.status(200).json({ received: true })
+      return res.status(200).json({ received: true, reason: 'webhook_inactive' })
     }
 
     // 6. Check secret (S2: HMAC verification, backward-compatible)
@@ -125,7 +125,7 @@ export default async function handler(req: any, res: any) {
     
     if (!secretValid) {
       console.log(`[webhook-receive] HONEYPOT: secret mismatch, path="${path}", hasSecretHash=${hasSecretHash}, hasSecretPlain=${hasSecretPlain}, provided=${!!providedSecret}`)
-      return res.status(200).json({ received: true })
+      return res.status(200).json({ received: true, reason: 'secret_mismatch' })
     }
 
     // 7. Rate limiting
