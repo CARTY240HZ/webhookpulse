@@ -39,7 +39,7 @@ export default async function handler(req: any, res: any) {
     const rawSecret = (body.secret as string) || null
 
     const validation = validateWebhookInput(name, description)
-    if (!validation.ok) {
+    if (validation.ok === false) {
       return apiError(res, 400, validation.code)
     }
 
