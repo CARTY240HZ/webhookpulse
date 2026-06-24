@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom'
 import { Activity, Shield, Zap, Globe } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 
 export default function LandingPage() {
+  const { user } = useAuth()
+  const isAuthenticated = !!user
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="h-16 border-b border-border flex items-center justify-between px-6 lg:px-12">
@@ -10,12 +14,20 @@ export default function LandingPage() {
           <span className="font-bold text-text-primary tracking-tight text-lg">WebhookPulse</span>
         </div>
         <div className="flex items-center gap-4">
-          <Link to="/login" className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
-            Sign in
-          </Link>
-          <Link to="/register" className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors">
-            Get started
-          </Link>
+          {isAuthenticated ? (
+            <Link to="/dashboard" className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors">
+              Go to Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
+                Sign in
+              </Link>
+              <Link to="/register" className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors">
+                Get started
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
@@ -28,12 +40,20 @@ export default function LandingPage() {
             A professional receiver for Discord and generic webhooks. Real-time logs, secure secrets, and a dashboard built for precision.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Link to="/register" className="px-6 py-3 rounded text-base font-semibold bg-accent text-background hover:bg-accent-hover transition-colors">
-              Start for free
-            </Link>
-            <Link to="/login" className="px-6 py-3 rounded text-base font-semibold bg-surface border border-border text-text-primary hover:bg-elevated transition-colors">
-              Sign in
-            </Link>
+            {isAuthenticated ? (
+              <Link to="/dashboard" className="px-6 py-3 rounded text-base font-semibold bg-accent text-background hover:bg-accent-hover transition-colors">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/register" className="px-6 py-3 rounded text-base font-semibold bg-accent text-background hover:bg-accent-hover transition-colors">
+                  Start for free
+                </Link>
+                <Link to="/login" className="px-6 py-3 rounded text-base font-semibold bg-surface border border-border text-text-primary hover:bg-elevated transition-colors">
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

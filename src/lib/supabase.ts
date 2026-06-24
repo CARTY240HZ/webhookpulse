@@ -6,7 +6,15 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const isConfigured = supabaseUrl.length > 0 && supabaseAnonKey.length > 0
 
 export const supabase = isConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        storageKey: 'webhookpulse-auth',
+        storage: typeof window !== 'undefined' ? localStorage : undefined,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   : null as unknown as ReturnType<typeof createClient>
 
 export function getSupabase() {
