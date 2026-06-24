@@ -2,6 +2,7 @@ import { getSupabase } from './_lib/supabase'
 import { getCorsHeaders } from './_lib/cors'
 import { getUserFromJWT } from './_lib/auth'
 import { validateWebhookInput, clampString } from './_lib/validate'
+import { hashSecret } from './_lib/hmac'
 import { apiError } from './_lib/errors'
 import { captureException } from './_lib/sentry'
 
@@ -35,13 +36,27 @@ export default async function handler(req: any, res: any) {
     const body = req.body || {}
     const name = clampString((body.name as string) || '', 100)
     const description = clampString((body.description as string) || '', 500)
+    const rawSecret = (body.secret as string) || null
 
     const validation = validateWebhookInput(name, description)
     if (!validation.ok) {
       return apiError(res, 400, validation.code)
     }
 
+    // S9: Check webhook limit per user
+    const MAX_WEBHOOKS = parseInt(process.env.MAX_WEBHOOKS_PER_USER || '20', 10)
+    const { count: currentCount, error: countError } = await supabase
+      .from('webhooks')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    if (!countError && (currentCount || 0) >= MAX_WEBHOOKS) {
+      return apiError(res, 429, 'WEBHOOK_LIMIT_EXCEEDED')
+    }
+
     const urlPath = generateSlug(name)
+
+    // S2: Hash secret before storing (HMAC-SHA256)
+    const secretHash = rawSecret ? hashSecret(rawSecret) : null
 
     const { data: webhook, error } = await supabase
       .from('webhooks')
@@ -50,7 +65,8 @@ export default async function handler(req: any, res: any) {
         name: name.trim(),
         description: description || null,
         url_path: urlPath,
-        secret: (body.secret as string) || null,
+        secret: rawSecret || null,
+        secret_hash: secretHash,
       })
       .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
       .single()
@@ -60,7 +76,8 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'WEBHOOK_CREATE_FAILED')
     }
 
-    return res.status(201).json({ webhook })
+    // Return the raw secret ONE TIME so the user can copy it
+    return res.status(201).json({ webhook, secret: rawSecret })
   } catch (err) {
     captureException(err as Error)
     return apiError(res, 500, 'INTERNAL_ERROR')

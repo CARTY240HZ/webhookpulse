@@ -3,6 +3,7 @@ import { getCorsHeaders } from './_lib/cors'
 import { isValidPath } from './_lib/validate'
 import { checkRateLimit } from './_lib/ratelimit'
 import { apiError } from './_lib/errors'
+import { verifySecret } from './_lib/hmac'
 import { captureException } from './_lib/sentry'
 
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
@@ -83,7 +84,7 @@ export default async function handler(req: any, res: any) {
     // 5. Find webhook (silently — S10 honeypot)
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, is_active')
+      .select('id, secret, secret_hash, is_active')
       .eq('url_path', path)
       .single()
 
@@ -96,9 +97,19 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
-    // 6. Check secret
+    // 6. Check secret (S2: HMAC verification, backward-compatible)
     const providedSecret = req.headers['x-webhook-secret'] || ''
-    if (webhook.secret && providedSecret !== webhook.secret) {
+    let secretValid = false
+    if (webhook.secret_hash && providedSecret) {
+      secretValid = verifySecret(String(providedSecret), String(webhook.secret_hash))
+    } else if (webhook.secret && providedSecret) {
+      // Legacy: direct comparison during migration period
+      secretValid = String(providedSecret) === String(webhook.secret)
+    } else if (!webhook.secret && !webhook.secret_hash) {
+      // No secret configured — allow all
+      secretValid = true
+    }
+    if (!secretValid) {
       return res.status(200).json({ received: true })
     }
 
