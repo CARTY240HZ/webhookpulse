@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff, LogOut } from 'lucide-react'
 import { useRealtimeLogs } from '../hooks/useRealtimeLogs'
 import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
+import { useAuth } from '../hooks/useAuth'
 import LogRow from '../components/LogRow'
 import type { Webhook } from '../types'
 
@@ -193,13 +194,23 @@ export default function WebhookDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/dashboard')}
           className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
+        </button>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut()
+            navigate('/')
+          }}
+          className="flex items-center gap-1.5 text-sm text-danger hover:text-danger/80 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign out
         </button>
       </div>
 
