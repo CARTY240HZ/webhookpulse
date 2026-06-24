@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Webhook } from '../types'
 
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
 export function useWebhooks() {
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,31 +34,26 @@ export function useWebhooks() {
     fetchWebhooks()
   }, [fetchWebhooks])
 
-  const createWebhook = async (name: string, description?: string, secret?: string) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
+  const createWebhook = async (name: string, description?: string, type: 'native' | 'discord' = 'native') => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Not authenticated')
 
-    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const rand = Math.random().toString(36).substring(2, 8)
-    const urlPath = `${base}-${rand}`
+    const res = await fetch(`${API_BASE}/api/webhook-create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ name, description, type }),
+    })
 
-    const { data, error: supaError } = await supabase
-      .from('webhooks')
-      .insert({
-        user_id: user.id,
-        name: name.trim(),
-        description: description?.trim() || null,
-        url_path: urlPath,
-        secret: secret?.trim() || null,
-      })
-      .select('*')
-      .single()
-
-    if (supaError) {
-      throw new Error(supaError.message)
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to create webhook')
     }
+
     await fetchWebhooks()
-    return data as Webhook
+    return data.webhook as Webhook
   }
 
   const deleteWebhook = async (id: string) => {

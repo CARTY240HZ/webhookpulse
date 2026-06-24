@@ -60,9 +60,15 @@ export default async function handler(req: any, res: any) {
     }
 
     const urlPath = generateSlug(name)
-
-    // Generate Discord-compatible token automatically (cryptographically secure)
-    const discordToken = generateDiscordToken()
+    const type = (body.type as string) || 'native'
+    
+    let secret: string | null = null
+    let discordUrl: string | null = null
+    
+    if (type === 'discord') {
+      // Generate Discord-compatible token automatically (cryptographically secure)
+      secret = generateDiscordToken()
+    }
 
     const { data: webhook, error } = await supabase
       .from('webhooks')
@@ -71,7 +77,7 @@ export default async function handler(req: any, res: any) {
         name: name.trim(),
         description: description || null,
         url_path: urlPath,
-        secret: discordToken,
+        secret: secret,
       })
       .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
       .single()
@@ -81,16 +87,25 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'WEBHOOK_CREATE_FAILED')
     }
 
-    // Return the Discord-compatible URL and token ONE TIME
+    // Return URLs based on type
     const baseUrl = process.env.APP_URL || 'https://webhookpulse.vercel.app'
-    const discordUrl = `${baseUrl}/api/webhooks/${webhook.id}/${discordToken}`
+    const nativeUrl = `${baseUrl}/api/webhook-receive?path=${urlPath}`
+    
+    if (type === 'discord' && secret) {
+      discordUrl = `${baseUrl}/api/webhooks/${webhook.id}/${secret}`
+    }
 
-    return res.status(201).json({
+    const response: Record<string, unknown> = {
       webhook,
-      token: discordToken,
-      discord_url: discordUrl,
-      native_url: `${baseUrl}/api/webhook-receive?path=${urlPath}`,
-    })
+      native_url: nativeUrl,
+    }
+    
+    if (discordUrl) {
+      response.discord_url = discordUrl
+      response.token = secret
+    }
+
+    return res.status(201).json(response)
   } catch (err) {
     captureException(err as Error)
     return apiError(res, 500, 'INTERNAL_ERROR')

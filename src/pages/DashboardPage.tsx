@@ -11,8 +11,8 @@ export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const navigate = useNavigate()
 
-  const handleCreate = async (name: string, description?: string, secret?: string) => {
-    return await createWebhook(name, description, secret)
+  const handleCreate = async (name: string, description?: string, type: 'native' | 'discord' = 'native') => {
+    return await createWebhook(name, description, type)
   }
 
   return (
