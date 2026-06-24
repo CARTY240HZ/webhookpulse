@@ -1,32 +1,9 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.SUPABASE_URL || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
-
-function getSupabase(): SupabaseClient {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY')
-  }
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  }
-}
-
-async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
-  const token = authHeader.replace('Bearer ', '').trim()
-  if (!token) return null
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
+import { getSupabase } from './_lib/supabase'
+import { getCorsHeaders } from './_lib/cors'
+import { getUserFromJWT } from './_lib/auth'
+import { validateWebhookInput, clampString } from './_lib/validate'
+import { apiError } from './_lib/errors'
+import { captureException } from './_lib/sentry'
 
 function generateSlug(name: string): string {
   const base = name
@@ -39,26 +16,29 @@ function generateSlug(name: string): string {
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    res.set(corsHeaders())
+    res.set(getCorsHeaders('private'))
     return res.status(204).end()
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
+    return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
 
   try {
     const supabase = getSupabase()
     const authHeader = req.headers.authorization || ''
-    const user = await getUserFromJWT(supabase, authHeader)
+    const user = await getUserFromJWT(authHeader)
     if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      return apiError(res, 401, 'UNAUTHORIZED')
     }
 
     const body = req.body || {}
-    const name = (body.name as string) || ''
-    if (!name || name.trim().length === 0) {
-      return res.status(400).json({ error: 'Name is required' })
+    const name = clampString((body.name as string) || '', 100)
+    const description = clampString((body.description as string) || '', 500)
+
+    const validation = validateWebhookInput(name, description)
+    if (!validation.ok) {
+      return apiError(res, 400, validation.code)
     }
 
     const urlPath = generateSlug(name)
@@ -68,19 +48,21 @@ export default async function handler(req: any, res: any) {
       .insert({
         user_id: user.id,
         name: name.trim(),
-        description: (body.description as string) || null,
+        description: description || null,
         url_path: urlPath,
         secret: (body.secret as string) || null,
       })
-      .select('*')
+      .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
       .single()
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to create webhook', details: error.message })
+      captureException(error)
+      return apiError(res, 500, 'WEBHOOK_CREATE_FAILED')
     }
 
     return res.status(201).json({ webhook })
   } catch (err) {
-    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
+    captureException(err as Error)
+    return apiError(res, 500, 'INTERNAL_ERROR')
   }
 }

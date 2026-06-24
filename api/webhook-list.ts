@@ -1,59 +1,37 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.SUPABASE_URL || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
-
-function getSupabase(): SupabaseClient {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY')
-  }
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  }
-}
-
-async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
-  const token = authHeader.replace('Bearer ', '').trim()
-  if (!token) return null
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
+import { getSupabase } from './_lib/supabase'
+import { getCorsHeaders } from './_lib/cors'
+import { getUserFromJWT } from './_lib/auth'
+import { apiError } from './_lib/errors'
+import { captureException } from './_lib/sentry'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    res.set(corsHeaders())
+    res.set(getCorsHeaders('private'))
     return res.status(204).end()
   }
 
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' })
+    return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
 
   try {
     const supabase = getSupabase()
     const authHeader = req.headers.authorization || ''
-    const user = await getUserFromJWT(supabase, authHeader)
+    const user = await getUserFromJWT(authHeader)
     if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      return apiError(res, 401, 'UNAUTHORIZED')
     }
 
+    // S5: Exclude 'secret' from response. Be explicit with field list.
     const { data: webhooks, error } = await supabase
       .from('webhooks')
-      .select('*, webhook_logs(count)')
+      .select('id, user_id, name, description, url_path, is_active, created_at, updated_at, webhook_logs(count)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to fetch webhooks', details: error.message })
+      captureException(error)
+      return apiError(res, 500, 'WEBHOOK_FETCH_FAILED')
     }
 
     const enriched = (webhooks || []).map((w: Record<string, unknown>) => ({
@@ -63,6 +41,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({ webhooks: enriched })
   } catch (err) {
-    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
+    captureException(err as Error)
+    return apiError(res, 500, 'INTERNAL_ERROR')
   }
 }

@@ -1,32 +1,11 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { getSupabase } from './_lib/supabase'
+import { getCorsHeaders } from './_lib/cors'
+import { getUserFromJWT } from './_lib/auth'
+import { isValidUUID } from './_lib/validate'
+import { apiError } from './_lib/errors'
+import { captureException } from './_lib/sentry'
 
-const supabaseUrl = process.env.SUPABASE_URL || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
-
-function getSupabase(): SupabaseClient {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY')
-  }
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  }
-}
-
-async function getUserFromJWT(supabase: SupabaseClient, authHeader: string) {
-  const token = authHeader.replace('Bearer ', '').trim()
-  if (!token) return null
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error || !data.user) return null
-  return data.user
-}
+const MAX_EXPORT_ROWS = 10_000
 
 function escapeCsvCell(value: string): string {
   if (value.includes('"') || value.includes(',') || value.includes('\n') || value.includes('\r')) {
@@ -37,25 +16,25 @@ function escapeCsvCell(value: string): string {
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    res.set(corsHeaders())
+    res.set(getCorsHeaders('private'))
     return res.status(204).end()
   }
 
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' })
+    return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
 
   try {
     const supabase = getSupabase()
     const authHeader = req.headers.authorization || ''
-    const user = await getUserFromJWT(supabase, authHeader)
+    const user = await getUserFromJWT(authHeader)
     if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      return apiError(res, 401, 'UNAUTHORIZED')
     }
 
     const webhookId = req.query?.webhookId || ''
-    if (!webhookId) {
-      return res.status(400).json({ error: 'Missing webhookId' })
+    if (!webhookId || !isValidUUID(String(webhookId))) {
+      return apiError(res, 400, 'INVALID_WEBHOOK_ID')
     }
 
     const { data: webhook, error: ownerError } = await supabase
@@ -66,17 +45,20 @@ export default async function handler(req: any, res: any) {
       .single()
 
     if (ownerError || !webhook) {
-      return res.status(404).json({ error: 'Webhook not found' })
+      return apiError(res, 404, 'WEBHOOK_NOT_FOUND')
     }
 
-    const { data: logs, error } = await supabase
+    // S7: Cap at 10,000 rows
+    const { data: logs, error, count } = await supabase
       .from('webhook_logs')
-      .select('id, created_at, ip_address, payload')
+      .select('id, created_at, ip_address, payload', { count: 'exact' })
       .eq('webhook_id', webhookId)
       .order('created_at', { ascending: false })
+      .limit(MAX_EXPORT_ROWS)
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to fetch logs', details: error.message })
+      captureException(error)
+      return apiError(res, 500, 'LOGS_EXPORT_FAILED')
     }
 
     const rows = logs || []
@@ -96,15 +78,18 @@ export default async function handler(req: any, res: any) {
     }
 
     const csv = csvRows.join('\r\n')
+    const truncated = (count || 0) > MAX_EXPORT_ROWS
 
     res.set({
-      ...corsHeaders(),
+      ...getCorsHeaders('private'),
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="webhook-logs-${webhookId}.csv"`,
+      ...(truncated ? { 'X-Truncated': 'true' } : {}),
     })
 
     return res.status(200).send(csv)
   } catch (err) {
-    return res.status(500).json({ error: 'Internal error', details: (err as Error).message })
+    captureException(err as Error)
+    return apiError(res, 500, 'INTERNAL_ERROR')
   }
 }
