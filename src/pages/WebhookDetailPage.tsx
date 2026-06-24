@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff } from 'lucide-react'
 import { useRealtimeLogs } from '../hooks/useRealtimeLogs'
 import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
@@ -19,6 +19,14 @@ export default function WebhookDetailPage() {
 
   const [exporting, setExporting] = useState(false)
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+  // Token reveal state
+  const [showTokenReveal, setShowTokenReveal] = useState(false)
+  const [tokenPassword, setTokenPassword] = useState('')
+  const [revealedToken, setRevealedToken] = useState<string | null>(null)
+  const [tokenError, setTokenError] = useState<string | null>(null)
+  const [revealing, setRevealing] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleExport = async () => {
     if (!id) return
@@ -90,6 +98,41 @@ export default function WebhookDetailPage() {
       .update({ is_active: !webhook.is_active, updated_at: new Date().toISOString() })
       .eq('id', webhook.id)
     await refresh()
+  }
+
+  const handleRevealToken = async () => {
+    if (!id || !tokenPassword) return
+    setRevealing(true)
+    setTokenError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) {
+        setTokenError('Session expired. Please log in again.')
+        setRevealing(false)
+        return
+      }
+      const res = await fetch(`${baseUrl}/api/webhook-reveal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ webhookId: id, password: tokenPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTokenError(data.error || 'Failed to reveal token. Check your password.')
+        setRevealing(false)
+        return
+      }
+      setRevealedToken(data.token)
+      setShowTokenReveal(false)
+    } catch {
+      setTokenError('Network error. Please try again.')
+    } finally {
+      setRevealing(false)
+    }
   }
 
   const handleSelect = (logId: string, checked: boolean) => {
@@ -224,6 +267,74 @@ export default function WebhookDetailPage() {
                 </button>
               </div>
               <code className="block text-sm text-text-secondary truncate">{webhook.discord_url}</code>
+            </div>
+          )}
+
+          {/* Reveal Token */}
+          {isDiscord && (
+            <div className="bg-background border border-border rounded px-3 py-2 mb-4">
+              {!revealedToken ? (
+                <>
+                  {!showTokenReveal ? (
+                    <button
+                      onClick={() => { setShowTokenReveal(true); setTokenError(null) }}
+                      className="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Want to see your token?
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-text-secondary">Enter your password to reveal the token:</p>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={tokenPassword}
+                            onChange={(e) => setTokenPassword(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleRevealToken()}
+                            placeholder="Your password"
+                            className="w-full px-3 py-2 pr-10 bg-surface border border-border rounded text-text-primary text-sm focus:border-accent transition-colors"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <button
+                          onClick={handleRevealToken}
+                          disabled={revealing || !tokenPassword}
+                          className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
+                        >
+                          {revealing ? 'Verifying...' : 'Reveal'}
+                        </button>
+                      </div>
+                      {tokenError && (
+                        <p className="text-xs text-danger">{tokenError}</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
+                      Token
+                    </span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(revealedToken)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                  <code className="block text-sm text-text-secondary truncate">{revealedToken}</code>
+                </div>
+              )}
             </div>
           )}
 

@@ -91,7 +91,7 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                         Copy
                       </button>
                     </div>
-                    <p className="text-xs text-danger mt-1">Copy this now — it won't be shown again!</p>
+                    <p className="text-xs text-danger mt-1">Copy it now or retrieve it later in the Dashboard panel with your password.</p>
                   </div>
                 )}
               </div>
