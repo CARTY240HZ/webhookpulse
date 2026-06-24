@@ -43,14 +43,10 @@ export default async function handler(req: any, res: any) {
 
     // 1. Validate path format
     const path = req.query?.path || ''
-    console.log(`[webhook-receive] DEBUG: raw path="${path}", type=${typeof path}, stringified=${JSON.stringify(path)}`)
-    console.log(`[webhook-receive] DEBUG: path char codes = ${Array.from(String(path)).map(c => c.charCodeAt(0)).join(',')}`)
     if (!path || !isValidPath(String(path))) {
       console.log(`[webhook-receive] HONEYPOT: invalid path format, path="${path}"`)
       return res.status(200).json({ received: true, reason: 'invalid_path' })
     }
-
-    console.log(`[webhook-receive] DEBUG: path is valid, proceeding with lookup`)
 
     // 2. Body size limit
     const bodySize = req.body
@@ -86,25 +82,17 @@ export default async function handler(req: any, res: any) {
     const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
 
     // 5. Find webhook (silently — S10 honeypot)
+    const pathStr = String(path)
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
       .select('id, secret, secret_hash, is_active')
-      .eq('url_path', path)
+      .eq('url_path', pathStr)
       .single()
 
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
-      console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${path}"`)
-      console.log(`[webhook-receive] DEBUG findError=${JSON.stringify(findError)}`)
-      // TEMP: List existing paths to diagnose mismatch
-      const { data: allHooks } = await supabase.from('webhooks').select('url_path')
-      const existingPaths = (allHooks || []).map((h: any) => h.url_path)
-      const first = existingPaths[0] || ''
-      console.log(`[webhook-receive] DEBUG path===first? ${String(path) === String(first)}`)
-      console.log(`[webhook-receive] DEBUG path_char_codes=[${Array.from(String(path)).map(c => c.charCodeAt(0)).join(',')}]`)
-      console.log(`[webhook-receive] DEBUG first_char_codes=[${Array.from(String(first)).map(c => c.charCodeAt(0)).join(',')}]`)
-      console.log(`[webhook-receive] DEBUG existing_paths=${JSON.stringify(existingPaths)}`)
-      return res.status(200).json({ received: true, reason: 'webhook_not_found', existing_paths: existingPaths, path_eq_first: String(path) === String(first) })
+      console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${pathStr}"`)
+      return res.status(200).json({ received: true, reason: 'webhook_not_found' })
     }
 
     console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
