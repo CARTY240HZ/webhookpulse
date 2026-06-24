@@ -83,17 +83,16 @@ export default async function handler(req: any, res: any) {
 
     // 5. Find webhook (silently — S10 honeypot)
     const pathStr = String(path)
-    // TEMP: Bypass .eq() bug — fetch all and filter in JS
     const { data: allWebhooks, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, secret_hash, is_active, url_path')
+      .select('id, secret, is_active, url_path')
     
     const webhook = allWebhooks?.find((h: any) => h.url_path === pathStr) || null
 
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
       console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${pathStr}", total_fetched=${allWebhooks?.length || 0}, findError=${JSON.stringify(findError)}`)
-      return res.status(200).json({ received: true, reason: 'webhook_not_found', total_fetched: allWebhooks?.length || 0, paths: (allWebhooks || []).map((h: any) => h.url_path), findError: findError ? findError.message : null, v: 'js-filter-4' })
+      return res.status(200).json({ received: true, reason: 'webhook_not_found', total_fetched: allWebhooks?.length || 0, paths: (allWebhooks || []).map((h: any) => h.url_path), findError: findError ? findError.message : null, v: 'js-filter-5' })
     }
 
     console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
@@ -107,22 +106,19 @@ export default async function handler(req: any, res: any) {
     const providedSecret = req.headers['x-webhook-secret'] || ''
     let secretValid = false
     
-    // Normalize: treat null/empty/"null" as "no secret"
-    const hasSecretHash = webhook.secret_hash && String(webhook.secret_hash).trim() !== '' && String(webhook.secret_hash).trim() !== 'null'
+    // NOTE: secret_hash column doesn't exist in DB yet — use legacy secret only
     const hasSecretPlain = webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null'
     
-    if (hasSecretHash && providedSecret) {
-      secretValid = verifySecret(String(providedSecret), String(webhook.secret_hash))
-    } else if (hasSecretPlain && providedSecret) {
-      // Legacy: direct comparison during migration period
+    if (hasSecretPlain && providedSecret) {
+      // Legacy: direct comparison
       secretValid = String(providedSecret) === String(webhook.secret)
-    } else if (!hasSecretHash && !hasSecretPlain) {
+    } else if (!hasSecretPlain) {
       // No secret configured — allow all
       secretValid = true
     }
     
     if (!secretValid) {
-      console.log(`[webhook-receive] HONEYPOT: secret mismatch, path="${path}", hasSecretHash=${hasSecretHash}, hasSecretPlain=${hasSecretPlain}, provided=${!!providedSecret}`)
+      console.log(`[webhook-receive] HONEYPOT: secret mismatch, path="${path}", hasSecretPlain=${hasSecretPlain}, provided=${!!providedSecret}`)
       return res.status(200).json({ received: true, reason: 'secret_mismatch' })
     }
 
