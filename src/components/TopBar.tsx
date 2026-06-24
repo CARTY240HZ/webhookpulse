@@ -7,8 +7,9 @@ export default function TopBar() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const isDashboard = location.pathname === '/dashboard'
-  const isDetail = location.pathname.startsWith('/dashboard/webhooks/')
+  const path = location.pathname.replace(/\/$/, '') || '/'
+  const isDashboard = path === '/dashboard'
+  const isDetail = path.startsWith('/dashboard/webhooks/')
 
   const handleBack = () => {
     if (isDetail) {
@@ -22,11 +23,11 @@ export default function TopBar() {
 
   return (
     <header className="h-16 bg-surface border-b border-border flex items-center justify-between px-6">
-      <div className="flex items-center gap-3">
-        {showBack && (
+      <div className="flex items-center gap-3 min-w-0">
+        {showBack ? (
           <button
             onClick={handleBack}
-            className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-elevated border border-border text-sm text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
           >
             {isDetail ? (
               <>
@@ -40,6 +41,8 @@ export default function TopBar() {
               </>
             )}
           </button>
+        ) : (
+          <span className="text-sm text-text-secondary font-medium">WebhookPulse</span>
         )}
       </div>
       <div className="flex items-center gap-3">
