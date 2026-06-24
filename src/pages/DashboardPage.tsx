@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Inbox } from 'lucide-react'
+import { Plus, Inbox, ArrowLeft } from 'lucide-react'
 import { useWebhooks } from '../hooks/useWebhooks'
 import WebhookCard from '../components/WebhookCard'
 import CreateWebhookModal from '../components/CreateWebhookModal'
@@ -18,9 +18,18 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Webhooks</h1>
-          <p className="text-sm text-text-secondary mt-1">Manage your endpoints and inspect incoming logs.</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Home
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-text-primary">Webhooks</h1>
+            <p className="text-sm text-text-secondary mt-1">Manage your endpoints and inspect incoming logs.</p>
+          </div>
         </div>
         <button
           onClick={() => setModalOpen(true)}
