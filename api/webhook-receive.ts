@@ -83,15 +83,16 @@ export default async function handler(req: any, res: any) {
 
     // 5. Find webhook (silently — S10 honeypot)
     const pathStr = String(path)
-    const { data: webhook, error: findError } = await supabase
+    // TEMP: Bypass .eq() bug — fetch all and filter in JS
+    const { data: allWebhooks, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, secret_hash, is_active')
-      .eq('url_path', pathStr)
-      .single()
+      .select('id, secret, secret_hash, is_active, url_path')
+    
+    const webhook = allWebhooks?.find((h: any) => h.url_path === pathStr) || null
 
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
-      console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${pathStr}"`)
+      console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${pathStr}", total_fetched=${allWebhooks?.length || 0}`)
       return res.status(200).json({ received: true, reason: 'webhook_not_found' })
     }
 
