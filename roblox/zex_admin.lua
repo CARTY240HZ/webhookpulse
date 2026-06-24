@@ -16,6 +16,7 @@ local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local TextService = game:GetService("TextService")
 local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
@@ -70,6 +71,31 @@ local function safeCall(fn, fallback)
   return fallback
 end
 
+-- ============================================================
+-- TWEEN HELPERS (AAA Animation System)
+-- ============================================================
+local EASE_OUT_QUINT = Enum.EasingStyle.Quint
+local EASE_DIR_OUT = Enum.EasingDirection.Out
+local EASE_OUT_BACK = Enum.EasingStyle.Back
+
+local function tween(obj, props, duration, easingStyle, easingDir, delay)
+  duration = duration or 0.4
+  easingStyle = easingStyle or EASE_OUT_QUINT
+  easingDir = easingDir or EASE_DIR_OUT
+  delay = delay or 0
+  local info = TweenInfo.new(duration, easingStyle, easingDir, 0, false, delay)
+  local tw = TweenService:Create(obj, info, props)
+  tw:Play()
+  return tw
+end
+
+local function tweenSequence(seq)
+  -- seq = { {obj, props, dur, ease, dir, delay}, ... }
+  for _, step in ipairs(seq) do
+    tween(step[1], step[2], step[3], step[4], step[5], step[6] or 0)
+  end
+end
+
 local function parseResponse(res)
   if not res then return { status = 0, isSuccess = false, isHoneypot = false, body = "no response" } end
   local code = res.StatusCode or res.statusCode or res.status or 0
@@ -118,7 +144,9 @@ Main.Position = UDim2.new(0.5, -360, 0.5, -260)
 Main.BackgroundColor3 = Z.bg
 Main.BorderSizePixel = 0
 Main.ZIndex = 10
+Main.ClipsDescendants = true
 Main.Parent = SG
+Main.BackgroundTransparency = 1
 
 corner(Main, 8)
 stroke(Main, Z.border, 1)
@@ -235,13 +263,33 @@ local minimized = false
 MinBtn.MouseEnter:Connect(function() MinBtn.TextColor3 = Z.text end)
 MinBtn.MouseLeave:Connect(function() MinBtn.TextColor3 = Z.text2 end)
 MinBtn.MouseButton1Click:Connect(function()
-  minimized = not minimized
   if minimized then
-    Main.Size = UDim2.new(0, 720, 0, 48)
-    MinBtn.Text = "+"
-  else
-    Main.Size = UDim2.new(0, 720, 0, 520)
+    -- Maximize
+    tween(Main, {Size = UDim2.new(0, 720, 0, 520)}, 0.35, EASE_OUT_QUINT, EASE_DIR_OUT)
     MinBtn.Text = "-"
+    minimized = false
+    -- Force re-activation of current tab to fix layout after resize
+    task.delay(0.36, function()
+      if not Main or not Main.Parent then return end
+      for j, ot in ipairs(tabs) do
+        ot.btn.BackgroundColor3 = Z.surface
+        ot.btn.TextColor3 = Z.text2
+        ot.indicator.Visible = false
+        tabContainers[j].Visible = false
+      end
+      local t = tabs[activeTab]
+      if t then
+        t.btn.BackgroundColor3 = Z.elevated
+        t.btn.TextColor3 = Z.lime
+        t.indicator.Visible = true
+        tabContainers[activeTab].Visible = true
+      end
+    end)
+  else
+    -- Minimize
+    tween(Main, {Size = UDim2.new(0, 720, 0, 48)}, 0.3, EASE_OUT_QUINT, EASE_DIR_OUT)
+    MinBtn.Text = "+"
+    minimized = true
   end
 end)
 
@@ -271,6 +319,7 @@ for i, name in ipairs(tabNames) do
   btn.Font = Enum.Font.GothamBold
   btn.TextSize = 11
   btn.TextXAlignment = Enum.TextXAlignment.Left
+  btn.TextTransparency = 1
   btn.ZIndex = 12
   btn.Name = name
   btn.Parent = Sidebar
@@ -280,6 +329,7 @@ for i, name in ipairs(tabNames) do
   indicator.Position = UDim2.new(0, 0, 0.5, -10)
   indicator.BackgroundColor3 = Z.lime
   indicator.BorderSizePixel = 0
+  indicator.BackgroundTransparency = 1
   indicator.ZIndex = 13
   indicator.Parent = btn
   indicator.Visible = i == 1
@@ -303,7 +353,8 @@ Content.Size = UDim2.new(1, -120, 1, -48)
 Content.Position = UDim2.new(0, 120, 0, 48)
 Content.BackgroundColor3 = Z.bg
 Content.BorderSizePixel = 0
-Content.ZIndex = 10
+Content.ZIndex = 11
+Content.ClipsDescendants = true
 Content.Parent = Main
 
 local tabContainers = {}
@@ -1398,9 +1449,46 @@ end)
 -- ============================================================
 -- INIT
 -- ============================================================
-consoleLog("ZEX v7.0 initialized.", Z.lime)
-consoleLog("Executor: " .. safeCall(function() return identifyexecutor() end, "unknown"), Z.info)
-consoleLog("Player: " .. LocalPlayer.Name .. " (" .. LocalPlayer.UserId .. ")", Z.info)
-consoleLog("Press RightShift to toggle GUI.", Z.text2)
+local FinalSize = UDim2.new(0, 720, 0, 520)
+local FinalPos = UDim2.new(0.5, -360, 0.5, -260)
+local startScale = 0.92
+local startW = math.floor(720 * startScale)
+local startH = math.floor(520 * startScale)
+local startX = math.floor(-startW / 2)
+local startY = math.floor(-startH / 2)
+Main.Size = UDim2.new(0, startW, 0, startH)
+Main.Position = UDim2.new(0.5, startX, 0.52, startY)
+
+-- Phase 1: Main fade + scale + slide up (0.55s, Back ease for slight overshoot)
+tween(Main, {
+  BackgroundTransparency = 0,
+  Position = FinalPos,
+  Size = FinalSize,
+}, 0.55, EASE_OUT_BACK, EASE_DIR_OUT)
+
+-- Phase 2: Shadow fade in slightly delayed
+Shadow.BackgroundTransparency = 1
+tween(Shadow, { BackgroundTransparency = 0.6 }, 0.6, EASE_OUT_QUINT, EASE_DIR_OUT, 0.15)
+
+-- Phase 3: Sidebar tabs stagger reveal (0.04s per tab, AAA standard)
+for i, t in ipairs(tabs) do
+  local delay = 0.35 + (i * 0.04)
+  tween(t.btn, { TextTransparency = 0 }, 0.35, EASE_OUT_QUINT, EASE_DIR_OUT, delay)
+  if i == 1 then
+    tween(t.indicator, { BackgroundTransparency = 0 }, 0.3, EASE_OUT_QUINT, EASE_DIR_OUT, delay + 0.05)
+  end
+end
+
+-- Phase 4: Content reveal (after tabs)
+Content.BackgroundTransparency = 1
+tween(Content, { BackgroundTransparency = 0 }, 0.4, EASE_OUT_QUINT, EASE_DIR_OUT, 0.55)
+
+-- Final log after animation completes
+task.delay(0.8, function()
+  consoleLog("ZEX v7.0 initialized.", Z.lime)
+  consoleLog("Executor: " .. safeCall(function() return identifyexecutor() end, "unknown"), Z.info)
+  consoleLog("Player: " .. LocalPlayer.Name .. " (" .. LocalPlayer.UserId .. ")", Z.info)
+  consoleLog("Press RightShift to toggle GUI.", Z.text2)
+end)
 
 print("[ZEX] v7.0 Elite Controller loaded. RightShift to toggle.")
