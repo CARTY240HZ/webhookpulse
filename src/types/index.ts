@@ -2,7 +2,30 @@ export interface Profile {
   id: string
   full_name?: string
   avatar_url?: string
+  phone?: string
+  bio?: string
+  location?: string
+  website?: string
+  theme?: string
+  notifications_enabled?: boolean
+  language?: string
   created_at: string
+  updated_at: string
+  email?: string
+}
+
+export interface AccountSettings {
+  email: string
+  full_name: string
+  phone: string
+  bio: string
+  location: string
+  website: string
+  theme: string
+  notifications_enabled: boolean
+  language: string
+  created_at: string
+  updated_at: string
 }
 
 export interface Webhook {
