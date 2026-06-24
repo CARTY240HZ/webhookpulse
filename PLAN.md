@@ -2,9 +2,12 @@
 
 ## Contexto
 
-WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `09962af`) agrego:
+WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `872cbed`) agrego:
+- **Shared Infrastructure**: `api/_lib/` con 8 modulos reutilizables (supabase, cors, auth, validate, ratelimit, hmac, errors, sentry)
+- **Security Hardening**: 12 fixes completos (HMAC secrets, rate limit, body cap, CORS, headers filter, UUID validation, honeypot, webhook limit, DB index)
 - **CSV Export**: `api/webhook-export.ts` + boton en frontend
-- **Security**: rate limiting (10 req/min por IP), body size cap (256 KB), path validation
+- **Paginacion**: "Load more" en logs (50 por pagina)
+- **Stats Dashboard**: 4 graficos + tarjetas resumen
 - Cleanup: archivos obsoletos de Netlify/Redis borrados
 - Script Lua unico: `roblox/WebhookPulseSender_v2.lua`
 
@@ -12,79 +15,47 @@ WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `09962af`) a
 
 | # | Tarea | Estado | Commit |
 |---|-------|--------|--------|
-| 1 | Verificar embed (no "unknown") | ✅ Hecho | `14e7248` (Buffer fix + RobloxEmbed robusto) |
-| 2 | Endpoint CSV Export | ✅ Hecho | `97e3c61` (`api/webhook-export.ts`) |
-| 3 | Boton Export CSV en frontend | ✅ Hecho | `97e3c61` (`WebhookDetailPage.tsx`) |
-| 4 | Security + Rate Limiting | ✅ Hecho | `09962af` (body cap, rate limit, path validation) |
-| 5 | Paginacion de Logs | ✅ Hecho | `b92b4e9` (`useRealtimeLogs` + `Load more`) |
-| 6 | Stats Dashboard (Graficos) | ✅ Hecho | `ffd14d9` (`StatsPage.tsx` + SVG charts) |
+| 1 | Verificar embed (no "unknown") | ✅ Hecho | `14e7248` |
+| 2 | Endpoint CSV Export | ✅ Hecho | `97e3c61` |
+| 3 | Boton Export CSV en frontend | ✅ Hecho | `97e3c61` |
+| 4 | Security Audit + Rate Limiting | ✅ Hecho | `09962af` |
+| 5 | Paginacion de Logs | ✅ Hecho | `b92b4e9` |
+| 6 | Stats Dashboard (Graficos) | ✅ Hecho | `ffd14d9` |
+| 7 | Shared Infrastructure (`api/_lib/`) | ✅ Hecho | `251dcf0` |
+| 8 | Security Hardening (12 fixes) | ✅ Hecho | `251dcf0` + `872cbed` |
+| 9 | Tests (Vitest) | ⏳ Pendiente | |
+| 10 | Sentry (backend + frontend) | ⏳ Pendiente | |
 
 ---
 
-### Tarea 1: Verificar que el embed muestra datos correctos (CRITICO) — ✅ HECHO
+## Security Fixes (12/12 completos)
 
-**Implementado en:** `14e7248`
-
-- Buffer body parsing fix en `api/webhook-receive.ts`
-- `RobloxEmbed.tsx` robusto con deteccion de payload vacio/corrupto
-- Compatibilidad con payload anidado (`player.*`) y plano (`p.*`)
-
----
-
-### Tarea 2: Endpoint CSV Export (`api/webhook-export.ts`) — ✅ HECHO
-
-**Implementado en:** `97e3c61`
-
-- `api/webhook-export.ts` creado con Supabase, JWT, CORS
-- Devuelve CSV con `id,created_at,source_ip,payload_json`
-- `Content-Disposition: attachment` para descarga automatica
-
----
-
-### Tarea 3: Boton Export CSV en Frontend — ✅ HECHO
-
-**Implementado en:** `97e3c61`
-
-- Boton "Export CSV" con icono `Download` en barra de acciones de logs
-- Descarga automatica via blob + `URL.createObjectURL`
-- Spinner "Exporting..." mientras se genera
+| ID | Severidad | Fix | Commit |
+|----|-----------|-----|--------|
+| S1 | Critico | CORS restrictivo en auth endpoints (`getCorsHeaders('private')`) | `251dcf0` |
+| S2 | Critico | HMAC-SHA256 para secrets (`_lib/hmac.ts`) | `872cbed` |
+| S3 | Critico | No exponer `error.details` al cliente (`apiError()`) | `251dcf0` |
+| S4 | Critico | Filtrar headers (whitelist) antes de guardar en DB | `251dcf0` |
+| S5 | Alto | No devolver `secret` en `webhook-list` | `251dcf0` |
+| S6 | Alto | DB index `idx_webhook_logs_ip` para rate limit | `872cbed` (SQL) |
+| S7 | Alto | Cap 10,000 filas en export + `X-Truncated` header | `251dcf0` |
+| S8 | Alto | Validacion UUID en `webhook-delete`, `webhook-logs`, `webhook-export` | `251dcf0` |
+| S9 | Medio | Limite 20 webhooks por usuario (`MAX_WEBHOOKS_PER_USER`) | `872cbed` |
+| S10 | Medio | Honeypot 200 siempre en `webhook-receive` | `251dcf0` |
+| S11 | Medio | Singleton Supabase (`_lib/supabase.ts`) | `251dcf0` |
+| S12 | Medio | Limite name (100) / description (500) chars | `251dcf0` |
 
 ---
 
-### Tarea 4: Security Audit + Rate Limiting — ✅ HECHO
+## Fases de Implementacion
 
-**Implementado en:** `09962af`
-
-- **Body size cap**: 256 KB maximo → retorna `413 Payload Too Large`
-- **Rate limit**: 10 requests/minuto por IP, usando `webhook_logs` tabla para contar
-- **Path validation**: regex `^[a-zA-Z0-9_-]{1,64}$` previene inyeccion/DoS
-- **IP safe**: fallback a `null` si PostgreSQL `inet` rechaza el formato
-
----
-
-### Tarea 5: Paginacion de Logs — ✅ HECHO
-
-**Implementado en:** `b92b4e9`
-
-- `useRealtimeLogs` ahora usa paginacion con `.range()` (50 logs por pagina)
-- Boton "Load more" en `WebhookDetailPage` para cargar mas logs
-- Nuevos logs por realtime se anaden al top correctamente
-- Estado `loadingMore` + `hasMore` para controlar la carga
-
----
-
-### Tarea 6: Stats Dashboard (Graficos) — ✅ HECHO
-
-**Implementado en:** `ffd14d9`
-
-- Nueva ruta `/dashboard/stats` con navegacion en Sidebar
-- 4 tarjetas de resumen: Total logs, Webhooks, Unique IPs, Sources
-- Grafico de barras: Logs por hora (ultimas 24h)
-- Grafico de barras: Logs por webhook
-- Grafico de barras horizontal: Top 10 IPs
-- Donut chart SVG: Distribucion de sources (roblox vs otros)
-- Todos los graficos en tema oscuro premium con acento lime
-- Sin librerias externas (CSS puro + SVG)
+| Fase | Scope | Estado | Commit |
+|------|-------|--------|--------|
+| 1+2 | `api/_lib/` + refactor 6 endpoints + S1/S3/S4/S5/S7/S8/S10/S11/S12 | ✅ Hecho | `251dcf0` |
+| 3 | S2 (HMAC secrets) + S6 (index) + migracion SQL + endpoint `migrate-secrets` | ✅ Hecho | `872cbed` |
+| 4 | S7 (export cap) + S9 (webhook limit) | ✅ Hecho | `872cbed` |
+| 5 | Tests (vitest + unit + integration) | ⏳ Pendiente | |
+| 6 | Sentry (backend + frontend) | ⏳ Pendiente | |
 
 ---
 
