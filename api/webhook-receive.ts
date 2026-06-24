@@ -93,7 +93,7 @@ export default async function handler(req: any, res: any) {
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
       console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${pathStr}", total_fetched=${allWebhooks?.length || 0}`)
-      return res.status(200).json({ received: true, reason: 'webhook_not_found', total_fetched: allWebhooks?.length || 0, paths: (allWebhooks || []).map((h: any) => h.url_path) })
+      return res.status(200).json({ received: true, reason: 'webhook_not_found', total_fetched: allWebhooks?.length || 0, paths: (allWebhooks || []).map((h: any) => h.url_path), v: 'js-filter-3' })
     }
 
     console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
