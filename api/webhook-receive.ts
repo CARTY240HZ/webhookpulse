@@ -43,10 +43,13 @@ export default async function handler(req: any, res: any) {
 
     // 1. Validate path format
     const path = req.query?.path || ''
+    console.log(`[webhook-receive] DEBUG: raw path="${path}", query keys=${Object.keys(req.query || {}).join(',')}`)
     if (!path || !isValidPath(String(path))) {
-      // S10: Honeypot — always return 200 even for invalid paths
+      console.log(`[webhook-receive] HONEYPOT: invalid path format, path="${path}"`)
       return res.status(200).json({ received: true })
     }
+
+    console.log(`[webhook-receive] DEBUG: path is valid, proceeding with lookup`)
 
     // 2. Body size limit
     const bodySize = req.body
@@ -91,8 +94,11 @@ export default async function handler(req: any, res: any) {
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
       console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${path}"`)
+      console.log(`[webhook-receive] DEBUG findError=${JSON.stringify(findError)}`)
       return res.status(200).json({ received: true })
     }
+
+    console.log(`[webhook-receive] DEBUG: webhook found id=${webhook.id}, is_active=${webhook.is_active}, secret=${!!webhook.secret}, secret_hash=${!!webhook.secret_hash}`)
 
     if (!webhook.is_active) {
       console.log(`[webhook-receive] HONEYPOT: webhook inactive, path="${path}"`)
