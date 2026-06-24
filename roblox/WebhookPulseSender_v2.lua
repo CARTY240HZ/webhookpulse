@@ -315,17 +315,44 @@ Instance.new("UIPadding", UsernameValue).PaddingLeft = UDim.new(0, 12)
 createCorner(UsernameValue, 6)
 createStroke(UsernameValue, Colors.Border, 1)
 
--- Estado envio
-local SendStatus = createTextLabel(DataFrame, {
-  Size = UDim2.new(1, 0, 0, 20),
-  Position = UDim2.new(0, 0, 0, 156),
-  BackgroundTransparency = 1,
-  Text = "Esperando...",
-  TextColor3 = Colors.TextSecondary,
-  Font = Enum.Font.Gotham,
-  TextSize = 12,
-  TextXAlignment = Enum.TextXAlignment.Left,
-})
+-- Scrollable debug/status area
+local DebugScroll = Instance.new("ScrollingFrame")
+DebugScroll.Size = UDim2.new(1, 0, 0, 60)
+DebugScroll.Position = UDim2.new(0, 0, 0, 156)
+DebugScroll.BackgroundColor3 = Colors.Background
+DebugScroll.BorderSizePixel = 0
+DebugScroll.ScrollBarThickness = 4
+DebugScroll.ScrollBarImageColor3 = Colors.Accent
+DebugScroll.CanvasSize = UDim2.new(0, 0, 0, 60)
+DebugScroll.Parent = DataFrame
+
+Instance.new("UIPadding", DebugScroll).PaddingLeft = UDim.new(0, 0)
+Instance.new("UIPadding", DebugScroll).PaddingRight = UDim.new(0, 0)
+
+createCorner(DebugScroll, 6)
+createStroke(DebugScroll, Colors.Border, 1)
+
+local SendStatus = Instance.new("TextLabel")
+SendStatus.Size = UDim2.new(1, -16, 0, 0)
+SendStatus.Position = UDim2.new(0, 8, 0, 8)
+SendStatus.BackgroundTransparency = 1
+SendStatus.Text = "Listo para enviar."
+SendStatus.TextColor3 = Colors.TextSecondary
+SendStatus.Font = Enum.Font.Gotham
+SendStatus.TextSize = 12
+SendStatus.TextXAlignment = Enum.TextXAlignment.Left
+SendStatus.TextYAlignment = Enum.TextYAlignment.Top
+SendStatus.TextWrapped = true
+SendStatus.AutomaticSize = Enum.AutomaticSize.Y
+SendStatus.Parent = DebugScroll
+
+-- Update canvas size when text changes
+SendStatus:GetPropertyChangedSignal("TextBounds"):Connect(function()
+    local textBounds = SendStatus.TextBounds
+    local height = math.max(20, textBounds.Y + 16)
+    SendStatus.Size = UDim2.new(1, -16, 0, height)
+    DebugScroll.CanvasSize = UDim2.new(0, 0, 0, height + 16)
+end)
 
 -- Boton enviar
 local SendBtn = createTextButton(DataFrame, {
@@ -578,70 +605,76 @@ SendBtn.MouseButton1Click:Connect(function()
   local success = false
   local responseCode = nil
   local errorMsg = nil
+  local attempts = {}
 
-  -- Intento 1: request() (Wave, KRNL, etc)
-  if not success and request then
-    local ok, res = pcall(function()
-      return request({
-        Url = currentWebhookURL,
-        Method = "POST",
-        Headers = {
-          ["Content-Type"] = "application/json"
-        },
-        Body = body
-      })
-    end)
-    if ok and res then
-      success = true
-      responseCode = res.StatusCode
-    else
-      errorMsg = tostring(res)
+  local function tryHttp(fn, name, reqTable)
+    if not fn then
+      table.insert(attempts, name .. ": no disponible")
+      return false
     end
+    local ok, res = pcall(function()
+      return fn(reqTable)
+    end)
+    if ok then
+      if res then
+        local code = res.StatusCode or res.statusCode or res.status
+        if code then
+          if code >= 200 and code < 300 then
+            success = true
+            responseCode = code
+            return true
+          else
+            table.insert(attempts, name .. ": HTTP " .. tostring(code))
+            errorMsg = name .. " HTTP " .. tostring(code)
+          end
+        else
+          table.insert(attempts, name .. ": respuesta sin status")
+          errorMsg = name .. ": respuesta sin status"
+        end
+      else
+        table.insert(attempts, name .. ": respuesta vacia")
+        errorMsg = name .. ": respuesta vacia"
+      end
+    else
+      table.insert(attempts, name .. ": " .. tostring(res))
+      errorMsg = name .. ": " .. tostring(res)
+    end
+    return false
   end
 
-  -- Intento 2: syn.request (Synapse)
-  if not success and syn and syn.request then
-    local ok, res = pcall(function()
-      return syn.request({
-        Url = currentWebhookURL,
-        Method = "POST",
-        Headers = {
-          ["Content-Type"] = "application/json"
-        },
-        Body = body
-      })
-    end)
-    if ok and res then
-      success = true
-      responseCode = res.StatusCode
-    else
-      errorMsg = tostring(res)
-    end
-  end
+  local reqTable = {
+    Url = currentWebhookURL,
+    Method = "POST",
+    Headers = { ["Content-Type"] = "application/json" },
+    Body = body
+  }
 
-  -- Intento 3: HttpService.PostAsync (Roblox Studio, server-side)
+  tryHttp(request, "request()", reqTable)
+  if not success then tryHttp(getgenv().request, "getgenv().request", reqTable) end
+  if not success then tryHttp(http and http.request, "http.request", reqTable) end
+  if not success then tryHttp(syn and syn.request, "syn.request", reqTable) end
+  if not success then tryHttp(fluxus and fluxus.request, "fluxus.request", reqTable) end
+  if not success then tryHttp(delta and delta.request, "delta.request", reqTable) end
+
   if not success then
     local ok, res = pcall(function()
-      return HttpService:PostAsync(
-        currentWebhookURL,
-        body,
-        Enum.HttpContentType.ApplicationJson
-      )
+      return HttpService:PostAsync(currentWebhookURL, body, Enum.HttpContentType.ApplicationJson)
     end)
     if ok then
       success = true
       responseCode = 200
     else
-      errorMsg = tostring(res)
+      table.insert(attempts, "HttpService: " .. tostring(res))
+      errorMsg = "HttpService: " .. tostring(res)
     end
   end
 
   if success then
-    SendStatus.Text = "Enviado correctamente."
+    SendStatus.Text = "Enviado correctamente. (" .. tostring(responseCode) .. ")"
     SendStatus.TextColor3 = Colors.Success
     StatusDot.BackgroundColor3 = Colors.Success
   else
-    SendStatus.Text = "Error: " .. (errorMsg or "desconocido")
+    SendStatus.Text = "Error: " .. (errorMsg or "desconocido") .. "\n\nIntentos:\n" .. table.concat(attempts, "\n")
     SendStatus.TextColor3 = Colors.Danger
     StatusDot.BackgroundColor3 = Colors.Danger
   end
