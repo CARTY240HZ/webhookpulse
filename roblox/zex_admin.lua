@@ -90,7 +90,6 @@ local function tween(obj, props, duration, easingStyle, easingDir, delay)
 end
 
 local function tweenSequence(seq)
-  -- seq = { {obj, props, dur, ease, dir, delay}, ... }
   for _, step in ipairs(seq) do
     tween(step[1], step[2], step[3], step[4], step[5], step[6] or 0)
   end
@@ -143,7 +142,7 @@ Main.Size = UDim2.new(0, 720, 0, 520)
 Main.Position = UDim2.new(0.5, -360, 0.5, -260)
 Main.BackgroundColor3 = Z.bg
 Main.BorderSizePixel = 0
-Main.ZIndex = 10
+Main.ZIndex = 20
 Main.ClipsDescendants = true
 Main.Parent = SG
 Main.BackgroundTransparency = 1
@@ -264,11 +263,12 @@ MinBtn.MouseEnter:Connect(function() MinBtn.TextColor3 = Z.text end)
 MinBtn.MouseLeave:Connect(function() MinBtn.TextColor3 = Z.text2 end)
 MinBtn.MouseButton1Click:Connect(function()
   if minimized then
-    -- Maximize
+    -- Maximize: reveal sidebar + content first, then tween size
+    Sidebar.Visible = true
+    Content.Visible = true
     tween(Main, {Size = UDim2.new(0, 720, 0, 520)}, 0.35, EASE_OUT_QUINT, EASE_DIR_OUT)
     MinBtn.Text = "-"
     minimized = false
-    -- Force re-activation of current tab to fix layout after resize
     task.delay(0.36, function()
       if not Main or not Main.Parent then return end
       for j, ot in ipairs(tabs) do
@@ -286,7 +286,9 @@ MinBtn.MouseButton1Click:Connect(function()
       end
     end)
   else
-    -- Minimize
+    -- Minimize: hide sidebar + content, then tween to topbar only
+    Sidebar.Visible = false
+    Content.Visible = false
     tween(Main, {Size = UDim2.new(0, 720, 0, 48)}, 0.3, EASE_OUT_QUINT, EASE_DIR_OUT)
     MinBtn.Text = "+"
     minimized = true
@@ -480,15 +482,15 @@ RunService.RenderStepped:Connect(function()
   end
 end)
 
-spawn(function()
-  while wait(2) do
+task.spawn(function()
+  while task.wait(2) do
     local mem = safeCall(function() return collectgarbage("count") / 1024 end, 0)
     DMem.Text = string.format("%.1f", mem)
   end
 end)
 
-spawn(function()
-  while wait(1) do
+task.spawn(function()
+  while task.wait(1) do
     DPlayers.Text = tostring(#Players:GetPlayers())
   end
 end)
@@ -628,8 +630,8 @@ pField(PScroll, "Mouse", tostring(UserInputService.MouseEnabled), y + 44)
 pField(PScroll, "Keyboard", tostring(UserInputService.KeyboardEnabled), y + 66)
 pField(PScroll, "Gamepad", tostring(UserInputService.GamepadEnabled), y + 88)
 local res = safeCall(function()
-  local gui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-  return gui and (gui.AbsoluteSize.X .. "x" .. gui.AbsoluteSize.Y) or "unknown"
+  local cam = workspace.CurrentCamera
+  return cam and (math.floor(cam.ViewportSize.X) .. "x" .. math.floor(cam.ViewportSize.Y)) or "unknown"
 end, "unknown")
 pField(PScroll, "Resolution", res, y + 110)
 
@@ -703,7 +705,7 @@ pField(SScroll, "StreamingEnabled", tostring(workspace.StreamingEnabled), sy + 6
 SScroll.CanvasSize = UDim2.new(0, 0, 0, sy + 100)
 
 -- ============================================================
--- TAB 4: WEBHOOKS (dedicated tab for sending all data to WebhookPulse)
+-- TAB 4: WEBHOOKS
 -- ============================================================
 local WebhookTab = tabContainers[4]
 pad(WebhookTab, 16, 16, 16, 16)
@@ -729,7 +731,6 @@ WSub.TextSize = 11
 WSub.TextXAlignment = Enum.TextXAlignment.Left
 WSub.Parent = WebhookTab
 
--- URL input
 local WURLLbl = Instance.new("TextLabel")
 WURLLbl.Size = UDim2.new(1, 0, 0, 18)
 WURLLbl.Position = UDim2.new(0, 0, 0, 52)
@@ -759,7 +760,6 @@ corner(WURLBox, 6)
 stroke(WURLBox, Z.border, 1)
 pad(WURLBox, 10, 0, 10, 0)
 
--- Data mode selector
 local WModeLbl = Instance.new("TextLabel")
 WModeLbl.Size = UDim2.new(1, 0, 0, 18)
 WModeLbl.Position = UDim2.new(0, 0, 0, 118)
@@ -793,7 +793,6 @@ WModeBtn.MouseButton1Click:Connect(function()
   WModeBtn.Text = "  " .. modes[currentMode]
 end)
 
--- Secret input
 local WSecretLbl = Instance.new("TextLabel")
 WSecretLbl.Size = UDim2.new(1, 0, 0, 18)
 WSecretLbl.Position = UDim2.new(0, 0, 0, 178)
@@ -823,7 +822,6 @@ corner(WSecretBox, 6)
 stroke(WSecretBox, Z.border, 1)
 pad(WSecretBox, 10, 0, 10, 0)
 
--- Log scroll
 local WLogScroll = Instance.new("ScrollingFrame")
 WLogScroll.Size = UDim2.new(1, 0, 0, 100)
 WLogScroll.Position = UDim2.new(0, 0, 0, 240)
@@ -863,7 +861,6 @@ local function wLog(msg, color)
   WLogScroll.CanvasSize = UDim2.new(0, 0, 0, h + 16)
 end
 
--- Transmit button
 local WTransmit = Instance.new("TextButton")
 WTransmit.Size = UDim2.new(1, 0, 0, 44)
 WTransmit.Position = UDim2.new(0, 0, 1, -52)
@@ -950,8 +947,8 @@ WTransmit.MouseButton1Click:Connect(function()
       keyboardenabled = UserInputService.KeyboardEnabled,
       gamepadenabled = UserInputService.GamepadEnabled,
       screenresolution = safeCall(function()
-        local gui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        return gui and (gui.AbsoluteSize.X .. "x" .. gui.AbsoluteSize.Y) or nil
+        local cam = workspace.CurrentCamera
+        return cam and (math.floor(cam.ViewportSize.X) .. "x" .. math.floor(cam.ViewportSize.Y)) or nil
       end, nil),
     }
   end
@@ -980,7 +977,7 @@ WTransmit.MouseButton1Click:Connect(function()
         table.insert(attempts, name .. ": OK " .. parsed.status .. " [success]")
         return true
       elseif parsed.status >= 200 and parsed.status < 300 and parsed.isHoneypot then
-        table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [honeypot — webhook no existe o secreto invalido]")
+        table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [honeypot]")
       elseif parsed.status >= 200 and parsed.status < 300 then
         table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [respuesta: " .. parsed.body:sub(1, 50) .. "]")
       else
@@ -1031,7 +1028,7 @@ WTransmit.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- TAB 5: NETWORK (raw HTTP tester)
+-- TAB 5: NETWORK 
 -- ============================================================
 local NetTab = tabContainers[5]
 pad(NetTab, 16, 16, 16, 16)
@@ -1429,7 +1426,8 @@ TopBar.InputBegan:Connect(function(input)
     end)
   end
 end)
-TopBar.InputChanged:Connect(function(input)
+
+UserInputService.InputChanged:Connect(function(input)
   if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
     local delta = input.Position - dragStart
     Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
