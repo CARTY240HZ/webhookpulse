@@ -70,6 +70,25 @@ local function safeCall(fn, fallback)
   return fallback
 end
 
+local function parseResponse(res)
+  if not res then return { status = 0, isSuccess = false, isHoneypot = false, body = "no response" } end
+  local code = res.StatusCode or res.statusCode or res.status or 0
+  local bodyStr = res.Body or res.body or ""
+  local isSuccess = false
+  local isHoneypot = false
+  local bodyData = nil
+  local ok, decoded = pcall(function() return HttpService:JSONDecode(bodyStr) end)
+  if ok and decoded then
+    bodyData = decoded
+    if decoded.success == true or decoded.logId then
+      isSuccess = true
+    elseif decoded.received == true then
+      isHoneypot = true
+    end
+  end
+  return { status = code, isSuccess = isSuccess, isHoneypot = isHoneypot, body = bodyStr, data = bodyData }
+end
+
 -- ============================================================
 -- SCREEN GUI
 -- ============================================================
@@ -905,12 +924,16 @@ WTransmit.MouseButton1Click:Connect(function()
     if not fn then table.insert(attempts, name .. ": no disponible"); return false end
     local ok, res = pcall(function() return fn(reqTable) end)
     if ok and res then
-      local code = res.StatusCode or res.statusCode or res.status
-      if code and code >= 200 and code < 300 then
-        table.insert(attempts, name .. ": OK (" .. code .. ")")
+      local parsed = parseResponse(res)
+      if parsed.status >= 200 and parsed.status < 300 and parsed.isSuccess then
+        table.insert(attempts, name .. ": OK " .. parsed.status .. " [success]")
         return true
+      elseif parsed.status >= 200 and parsed.status < 300 and parsed.isHoneypot then
+        table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [honeypot — webhook no existe o secreto invalido]")
+      elseif parsed.status >= 200 and parsed.status < 300 then
+        table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [respuesta: " .. parsed.body:sub(1, 50) .. "]")
       else
-        table.insert(attempts, name .. ": HTTP " .. tostring(code))
+        table.insert(attempts, name .. ": HTTP " .. tostring(parsed.status))
       end
     else
       table.insert(attempts, name .. ": " .. tostring(res))
@@ -928,17 +951,31 @@ WTransmit.MouseButton1Click:Connect(function()
   if not success then
     local ok, res = pcall(function() return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end)
     if ok then
-      success = true
-      table.insert(attempts, "HttpService:PostAsync: OK")
+      local parsed = parseResponse({ Body = res, StatusCode = 200 })
+      if parsed.isSuccess then
+        success = true
+        table.insert(attempts, "HttpService:PostAsync: OK 200 [success]")
+      elseif parsed.isHoneypot then
+        table.insert(attempts, "HttpService:PostAsync: OK 200 [honeypot]")
+      else
+        success = true
+        table.insert(attempts, "HttpService:PostAsync: OK 200")
+      end
     else
       table.insert(attempts, "HttpService:PostAsync: " .. tostring(res))
     end
   end
   
   if success then
-    wLog("EXITOSO. Intentos:\n" .. table.concat(attempts, "\n"), Z.success)
+    wLog("EXITOSO. Datos guardados en WebhookPulse.", Z.success)
+    wLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.success)
+  elseif #attempts > 0 and string.find(table.concat(attempts), "honeypot") then
+    wLog("FALLIDO. El servidor rechazo la peticion (honeypot).", Z.danger)
+    wLog("Causas posibles: webhook no existe, secreto incorrecto, o webhook inactivo.", Z.danger)
+    wLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.text2)
   else
-    wLog("FALLIDO. Intentos:\n" .. table.concat(attempts, "\n"), Z.danger)
+    wLog("FALLIDO. Ningun metodo HTTP funciono.", Z.danger)
+    wLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.danger)
   end
 end)
 
@@ -1074,11 +1111,15 @@ NSend.MouseButton1Click:Connect(function()
     if not fn then table.insert(attempts, name .. ": no disp"); return false end
     local ok, res = pcall(function() return fn(reqTable) end)
     if ok and res then
-      local code = res.StatusCode or res.statusCode or res.status
-      if code and code >= 200 and code < 300 then
-        table.insert(attempts, name .. ": OK " .. code); return true
+      local parsed = parseResponse(res)
+      if parsed.status >= 200 and parsed.status < 300 and parsed.isSuccess then
+        table.insert(attempts, name .. ": OK " .. parsed.status .. " [success]"); return true
+      elseif parsed.status >= 200 and parsed.status < 300 and parsed.isHoneypot then
+        table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [honeypot]")
+      elseif parsed.status >= 200 and parsed.status < 300 then
+        table.insert(attempts, name .. ": HTTP " .. parsed.status .. " [resp: " .. parsed.body:sub(1, 40) .. "]")
       else
-        table.insert(attempts, name .. ": HTTP " .. tostring(code))
+        table.insert(attempts, name .. ": HTTP " .. tostring(parsed.status))
       end
     else
       table.insert(attempts, name .. ": " .. tostring(res))
@@ -1095,12 +1136,32 @@ NSend.MouseButton1Click:Connect(function()
   
   if not success then
     local ok, res = pcall(function() return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end)
-    if ok then success = true; table.insert(attempts, "HttpService: OK")
-    else table.insert(attempts, "HttpService: " .. tostring(res)) end
+    if ok then
+      local parsed = parseResponse({ Body = res, StatusCode = 200 })
+      if parsed.isSuccess then
+        success = true
+        table.insert(attempts, "HttpService: OK 200 [success]")
+      elseif parsed.isHoneypot then
+        table.insert(attempts, "HttpService: OK 200 [honeypot]")
+      else
+        success = true
+        table.insert(attempts, "HttpService: OK 200")
+      end
+    else
+      table.insert(attempts, "HttpService: " .. tostring(res))
+    end
   end
   
-  if success then nLog("EXITOSO.\n" .. table.concat(attempts, "\n"), Z.success)
-  else nLog("FALLIDO.\n" .. table.concat(attempts, "\n"), Z.danger) end
+  if success then
+    nLog("EXITOSO. Respuesta valida del servidor.", Z.success)
+    nLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.success)
+  elseif #attempts > 0 and string.find(table.concat(attempts), "honeypot") then
+    nLog("FALLIDO. Servidor rechazo (honeypot).", Z.danger)
+    nLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.text2)
+  else
+    nLog("FALLIDO. Ningun metodo HTTP funciono.", Z.danger)
+    nLog("Intentos:\n" .. table.concat(attempts, "\n"), Z.danger)
+  end
 end)
 
 -- ============================================================

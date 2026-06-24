@@ -104,7 +104,7 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
               Secret
             </span>
             <span className="text-sm text-text-primary">
-              {webhook.secret ? 'Si' : 'No'}
+              {(webhook as any).has_secret ? 'Si' : 'No'}
             </span>
           </div>
         </div>

@@ -22,10 +22,10 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 401, 'UNAUTHORIZED')
     }
 
-    // S5: Exclude 'secret' from response. Be explicit with field list.
+    // S5: Exclude 'secret' from response. Include 'secret_hash' to determine has_secret.
     const { data: webhooks, error } = await supabase
       .from('webhooks')
-      .select('id, user_id, name, description, url_path, is_active, created_at, updated_at, webhook_logs(count)')
+      .select('id, user_id, name, description, url_path, is_active, secret_hash, created_at, updated_at, webhook_logs(count)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -37,6 +37,7 @@ export default async function handler(req: any, res: any) {
     const enriched = (webhooks || []).map((w: Record<string, unknown>) => ({
       ...w,
       log_count: (w.webhook_logs as { count: number }[])?.[0]?.count ?? 0,
+      has_secret: !!(w.secret_hash && String(w.secret_hash).trim() !== '' && String(w.secret_hash).trim() !== 'null'),
     }))
 
     return res.status(200).json({ webhooks: enriched })

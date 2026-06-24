@@ -90,26 +90,35 @@ export default async function handler(req: any, res: any) {
 
     // S10: If webhook doesn't exist or is inactive, return 200 anyway
     if (findError || !webhook) {
+      console.log(`[webhook-receive] HONEYPOT: webhook not found for path="${path}"`)
       return res.status(200).json({ received: true })
     }
 
     if (!webhook.is_active) {
+      console.log(`[webhook-receive] HONEYPOT: webhook inactive, path="${path}"`)
       return res.status(200).json({ received: true })
     }
 
     // 6. Check secret (S2: HMAC verification, backward-compatible)
     const providedSecret = req.headers['x-webhook-secret'] || ''
     let secretValid = false
-    if (webhook.secret_hash && providedSecret) {
+    
+    // Normalize: treat null/empty/"null" as "no secret"
+    const hasSecretHash = webhook.secret_hash && String(webhook.secret_hash).trim() !== '' && String(webhook.secret_hash).trim() !== 'null'
+    const hasSecretPlain = webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null'
+    
+    if (hasSecretHash && providedSecret) {
       secretValid = verifySecret(String(providedSecret), String(webhook.secret_hash))
-    } else if (webhook.secret && providedSecret) {
+    } else if (hasSecretPlain && providedSecret) {
       // Legacy: direct comparison during migration period
       secretValid = String(providedSecret) === String(webhook.secret)
-    } else if (!webhook.secret && !webhook.secret_hash) {
+    } else if (!hasSecretHash && !hasSecretPlain) {
       // No secret configured — allow all
       secretValid = true
     }
+    
     if (!secretValid) {
+      console.log(`[webhook-receive] HONEYPOT: secret mismatch, path="${path}", hasSecretHash=${hasSecretHash}, hasSecretPlain=${hasSecretPlain}, provided=${!!providedSecret}`)
       return res.status(200).json({ received: true })
     }
 
