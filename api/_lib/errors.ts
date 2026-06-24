@@ -1,4 +1,4 @@
-import { getSupabase } from './supabase'
+import { captureException } from './sentry'
 
 export function apiError(
   res: any,
@@ -6,10 +6,9 @@ export function apiError(
   code: string,
   devDetails?: Error | string
 ): any {
-  // Log to console (future: Sentry capture)
   if (devDetails) {
-    const detail = devDetails instanceof Error ? devDetails.message : String(devDetails)
-    console.error(`[API ERROR ${code}]`, detail)
+    const err = devDetails instanceof Error ? devDetails : new Error(String(devDetails))
+    captureException(err)
   }
 
   // Client gets only the error code, never details

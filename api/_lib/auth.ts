@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabase } from './supabase'
+import { setUserContext } from './sentry'
 
 export async function getUserFromJWT(authHeader: string): Promise<{ id: string } | null> {
   const token = authHeader.replace('Bearer ', '').trim()
@@ -9,6 +10,7 @@ export async function getUserFromJWT(authHeader: string): Promise<{ id: string }
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user) return null
 
+  setUserContext(data.user.id)
   return { id: data.user.id }
 }
 

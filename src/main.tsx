@@ -1,9 +1,27 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
 import { configError } from './lib/supabase'
 import App from './App'
 import './index.css'
+
+// Sentry frontend init (only if DSN is configured)
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN
+if (sentryDsn) {
+  Sentry.init({
+    dsn: sentryDsn,
+    environment: import.meta.env.MODE || 'development',
+    tracesSampleRate: 0.1,
+    beforeSend(event) {
+      // Strip PII
+      if (event.user) {
+        event.user = { id: event.user.id }
+      }
+      return event
+    },
+  })
+}
 
 function ConfigError() {
   return (

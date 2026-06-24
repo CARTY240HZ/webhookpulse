@@ -1,6 +1,6 @@
-// Sentry integration placeholder
-// Will be initialized in Phase 6 when SENTRY_DSN env var is configured
-// import * as Sentry from '@sentry/node'
+import * as Sentry from '@sentry/node'
+
+let initialized = false
 
 export function initSentry(): void {
   const dsn = process.env.SENTRY_DSN
@@ -8,11 +8,34 @@ export function initSentry(): void {
     console.log('[Sentry] Skipped: SENTRY_DSN not set')
     return
   }
-  // Sentry.init({ dsn, environment: process.env.VERCEL_ENV || 'development' })
-  console.log('[Sentry] Initialized (Phase 6)')
+  if (initialized) return
+
+  Sentry.init({
+    dsn,
+    environment: process.env.VERCEL_ENV || 'development',
+    tracesSampleRate: 0.1,
+    beforeSend(event) {
+      // Ignore expected HTTP errors (not bugs)
+      const status = event.extra?.status as number | undefined
+      if (status && [400, 401, 403, 404, 429].includes(status)) {
+        return null
+      }
+      return event
+    },
+  })
+  initialized = true
+  console.log('[Sentry] Initialized')
+}
+
+initSentry()
+  if (!initialized) return
+  Sentry.setUser({ id: userId })
 }
 
 export function captureException(err: Error): void {
-  console.error('[Sentry capture]', err)
-  // if (Sentry) Sentry.captureException(err)
+  if (!initialized) {
+    console.error('[Sentry not initialized]', err)
+    return
+  }
+  Sentry.captureException(err)
 }
