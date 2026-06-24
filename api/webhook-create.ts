@@ -1,8 +1,8 @@
+import crypto from 'crypto'
 import { getSupabase } from './_lib/supabase.js'
 import { getCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { validateWebhookInput, clampString } from './_lib/validate.js'
-import { hashSecret } from './_lib/hmac.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 
@@ -13,6 +13,13 @@ function generateSlug(name: string): string {
     .replace(/^-|-$/g, '')
   const rand = Math.random().toString(36).substring(2, 8)
   return `${base}-${rand}`
+}
+
+// Generate a Discord-like cryptographically secure token (~68 chars)
+function generateDiscordToken(): string {
+  const bytes = crypto.randomBytes(48)
+  // base64url encoding gives ~64 chars, we pad to match Discord's ~68
+  return bytes.toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 68)
 }
 
 export default async function handler(req: any, res: any) {
@@ -36,7 +43,6 @@ export default async function handler(req: any, res: any) {
     const body = req.body || {}
     const name = clampString((body.name as string) || '', 100)
     const description = clampString((body.description as string) || '', 500)
-    const rawSecret = (body.secret as string) || null
 
     const validation = validateWebhookInput(name, description)
     if (validation.ok === false) {
@@ -55,8 +61,8 @@ export default async function handler(req: any, res: any) {
 
     const urlPath = generateSlug(name)
 
-    // S2: Hash secret before storing (HMAC-SHA256)
-    const secretHash = rawSecret ? hashSecret(rawSecret) : null
+    // Generate Discord-compatible token automatically (cryptographically secure)
+    const discordToken = generateDiscordToken()
 
     const { data: webhook, error } = await supabase
       .from('webhooks')
@@ -65,7 +71,7 @@ export default async function handler(req: any, res: any) {
         name: name.trim(),
         description: description || null,
         url_path: urlPath,
-        secret: rawSecret || null,
+        secret: discordToken,
       })
       .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
       .single()
@@ -75,8 +81,16 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'WEBHOOK_CREATE_FAILED')
     }
 
-    // Return the raw secret ONE TIME so the user can copy it
-    return res.status(201).json({ webhook, secret: rawSecret })
+    // Return the Discord-compatible URL and token ONE TIME
+    const baseUrl = process.env.APP_URL || 'https://webhookpulse.vercel.app'
+    const discordUrl = `${baseUrl}/api/webhooks/${webhook.id}/${discordToken}`
+
+    return res.status(201).json({
+      webhook,
+      token: discordToken,
+      discord_url: discordUrl,
+      native_url: `${baseUrl}/api/webhook-receive?path=${urlPath}`,
+    })
   } catch (err) {
     captureException(err as Error)
     return apiError(res, 500, 'INTERNAL_ERROR')
