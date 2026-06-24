@@ -191,14 +191,14 @@ export default function WebhookDetailPage() {
 
           {/* Native URL */}
           {webhook.native_url && (
-            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-3">
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-3 overflow-hidden">
               <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold shrink-0">
                 Native
               </span>
-              <code className="text-sm text-text-secondary truncate flex-1">{webhook.native_url}</code>
+              <code className="text-sm text-text-secondary truncate flex-1 min-w-0">{webhook.native_url}</code>
               <button
                 onClick={() => handleCopy(webhook.native_url!)}
-                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0"
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0 whitespace-nowrap"
               >
                 <Copy className="w-3.5 h-3.5" />
                 {copied ? 'Copied' : 'Copy'}
@@ -208,14 +208,14 @@ export default function WebhookDetailPage() {
 
           {/* Discord URL */}
           {webhook.discord_url && (
-            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-4">
+            <div className="flex items-center gap-2 bg-background border border-border rounded px-3 py-2 mb-4 overflow-hidden">
               <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold shrink-0">
                 Discord
               </span>
-              <code className="text-sm text-text-secondary truncate flex-1">{webhook.discord_url}</code>
+              <code className="text-sm text-text-secondary truncate flex-1 min-w-0">{webhook.discord_url}</code>
               <button
                 onClick={() => handleCopy(webhook.discord_url!)}
-                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0"
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors shrink-0 whitespace-nowrap"
               >
                 <Copy className="w-3.5 h-3.5" />
                 {copied ? 'Copied' : 'Copy'}
