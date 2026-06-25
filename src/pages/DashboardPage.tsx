@@ -1,19 +1,37 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Inbox } from 'lucide-react'
+import { Plus, Inbox, LayoutTemplate } from 'lucide-react'
 import { useWebhooks } from '../hooks/useWebhooks'
+import { t } from '../i18n'
 import WebhookCard from '../components/WebhookCard'
+import TemplateCard from '../components/TemplateCard'
 import CreateWebhookModal from '../components/CreateWebhookModal'
 import type { Webhook } from '../types'
 
 export default function DashboardPage() {
   const { webhooks, loading, error, createWebhook, deleteWebhook, toggleWebhook } = useWebhooks()
   const [modalOpen, setModalOpen] = useState(false)
+  const [selectedWebhookId, setSelectedWebhookId] = useState<string>('')
   const navigate = useNavigate()
 
   const handleCreate = async (name: string, description?: string, type: 'native' | 'discord' = 'native') => {
     return await createWebhook(name, description, type)
   }
+
+  const activeWebhooks = webhooks.filter((w) => w.is_active)
+  const selectedWebhook = activeWebhooks.find((w) => w.id === selectedWebhookId) || activeWebhooks[0]
+
+  const getWebhookUrlAndType = (webhook: Webhook | undefined): { url: string; type: 'native' | 'discord' } => {
+    if (!webhook) return { url: '', type: 'native' }
+    const isDiscord = webhook.has_secret && !!webhook.discord_url
+    return {
+      url: isDiscord ? (webhook.discord_url || '') : (webhook.native_url || ''),
+      type: isDiscord ? 'discord' : 'native',
+    }
+  }
+
+  const { url: selectedUrl, type: selectedType } = getWebhookUrlAndType(selectedWebhook)
+
 
   return (
     <div className="space-y-6">
@@ -67,6 +85,38 @@ export default function DashboardPage() {
               onNavigate={(id) => navigate(`/dashboard/webhooks/${id}`)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Templates Section */}
+      {!loading && webhooks.length > 0 && selectedWebhook && (
+        <div className="space-y-4 pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <LayoutTemplate className="w-5 h-5 text-accent" />
+              <h2 className="text-xl font-bold text-text-primary">{t('webhooks.templates.title')}</h2>
+            </div>
+            {activeWebhooks.length > 1 && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-text-secondary">Webhook:</label>
+                <select
+                  value={selectedWebhook.id}
+                  onChange={(e) => setSelectedWebhookId(e.target.value)}
+                  className="px-3 py-1.5 bg-background border border-border rounded text-sm text-text-primary focus:border-accent transition-colors"
+                >
+                  {activeWebhooks.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <TemplateCard templateId="player_join" webhookUrl={selectedUrl} type={selectedType} />
+            <TemplateCard templateId="server_stats" webhookUrl={selectedUrl} type={selectedType} />
+            <TemplateCard templateId="error_logger" webhookUrl={selectedUrl} type={selectedType} />
+            <TemplateCard templateId="admin_command" webhookUrl={selectedUrl} type={selectedType} />
+          </div>
         </div>
       )}
 

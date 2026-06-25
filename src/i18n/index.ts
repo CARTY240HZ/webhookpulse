@@ -77,6 +77,14 @@ export type TranslationKey =
   | 'landing.startFree'
   | 'landing.signIn'
   | 'landing.goDashboard'
+  | 'webhooks.templates.title'
+  | 'webhooks.templates.playerJoin'
+  | 'webhooks.templates.serverStats'
+  | 'webhooks.templates.errorLogger'
+  | 'webhooks.templates.adminCommand'
+  | 'webhooks.templates.generate'
+  | 'webhooks.templates.copy'
+  | 'webhooks.templates.preview'
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   en: {
@@ -158,6 +166,14 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'landing.startFree': 'Start for free',
     'landing.signIn': 'Sign in',
     'landing.goDashboard': 'Go to Dashboard',
+    'webhooks.templates.title': 'Roblox Templates',
+    'webhooks.templates.playerJoin': 'Player Join',
+    'webhooks.templates.serverStats': 'Server Stats',
+    'webhooks.templates.errorLogger': 'Error Logger',
+    'webhooks.templates.adminCommand': 'Admin Command',
+    'webhooks.templates.generate': 'Generate Lua Script',
+    'webhooks.templates.copy': 'Copy Script',
+    'webhooks.templates.preview': 'Preview',
   },
   es: {
     'app.name': 'WebhookPulse',
@@ -238,6 +254,14 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'landing.startFree': 'Empezar gratis',
     'landing.signIn': 'Iniciar sesión',
     'landing.goDashboard': 'Ir al Panel',
+    'webhooks.templates.title': 'Plantillas Roblox',
+    'webhooks.templates.playerJoin': 'Jugador Entra',
+    'webhooks.templates.serverStats': 'Estadísticas',
+    'webhooks.templates.errorLogger': 'Registro de Errores',
+    'webhooks.templates.adminCommand': 'Comando Admin',
+    'webhooks.templates.generate': 'Generar Script Lua',
+    'webhooks.templates.copy': 'Copiar Script',
+    'webhooks.templates.preview': 'Vista Previa',
   },
 }
 

@@ -1,3 +1,11 @@
+export interface WebhookTemplate {
+  id: string
+  title: string
+  description: string
+  icon: string
+  previewPayload: Record<string, unknown>
+}
+
 export interface Profile {
   id: string
   full_name?: string
