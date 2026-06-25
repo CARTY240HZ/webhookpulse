@@ -20,6 +20,16 @@ export type TranslationKey =
   | 'ipRules.ipNotAllowed'
   | 'ipRules.noRules'
   | 'ipRules.cidr'
+  | 'activity.title'
+  | 'activity.paused'
+  | 'activity.pause'
+  | 'activity.resume'
+  | 'activity.empty'
+  | 'activity.connected'
+  | 'activity.disconnected'
+  | 'activity.now'
+  | 'activity.secondsAgo'
+  | 'activity.minutesAgo'
   | 'settings.title'
   | 'settings.subtitle'
   | 'settings.profile'
@@ -135,6 +145,16 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'ipRules.ipNotAllowed': 'IP not in allowlist',
     'ipRules.noRules': 'No rules configured',
     'ipRules.cidr': 'Supports CIDR (e.g., 192.168.1.0/24)',
+    'activity.title': 'Live Activity',
+    'activity.paused': 'Paused',
+    'activity.pause': 'Pause',
+    'activity.resume': 'Resume',
+    'activity.empty': 'No activity yet',
+    'activity.connected': 'Connected',
+    'activity.disconnected': 'Disconnected',
+    'activity.now': 'just now',
+    'activity.secondsAgo': '{{s}}s ago',
+    'activity.minutesAgo': '{{m}}m ago',
     'settings.title': 'Settings',
     'settings.subtitle': 'Manage your profile, security, and preferences.',
     'settings.profile': 'Profile',
@@ -249,6 +269,16 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'ipRules.ipNotAllowed': 'IP no permitida',
     'ipRules.noRules': 'Sin reglas configuradas',
     'ipRules.cidr': 'Soporta CIDR (ej. 192.168.1.0/24)',
+    'activity.title': 'Actividad en Vivo',
+    'activity.paused': 'Pausado',
+    'activity.pause': 'Pausar',
+    'activity.resume': 'Reanudar',
+    'activity.empty': 'Sin actividad aún',
+    'activity.connected': 'Conectado',
+    'activity.disconnected': 'Desconectado',
+    'activity.now': 'ahora mismo',
+    'activity.secondsAgo': 'hace {{s}}s',
+    'activity.minutesAgo': 'hace {{m}}m',
     'settings.title': 'Ajustes',
     'settings.subtitle': 'Gestiona tu perfil, seguridad y preferencias.',
     'settings.profile': 'Perfil',
