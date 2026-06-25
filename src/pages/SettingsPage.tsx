@@ -438,7 +438,7 @@ export default function SettingsPage() {
             <h3 className="text-sm font-semibold text-text-primary mb-3">Change Password</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <PassInput label={t('settings.currentPassword')} value={currPass} onChange={setCurrPass} show={showCurr} setShow={setShowCurr} placeholder="Your current password" />
-              <PassInput label={t('settings.newPassword')} value={newPass} onChange={setNewPass} show={showNew} setShow={setShowNew} placeholder={t('settings.passwordMin)} />
+              <PassInput label={t('settings.newPassword')} value={newPass} onChange={setNewPass} show={showNew} setShow={setShowNew} placeholder={t('settings.passwordMin')} />
               <PassInput label={t('settings.confirmPassword')} value={confPass} onChange={setConfPass} show={showConf} setShow={setShowConf} placeholder="Repeat" />
             </div>
             <div className="mt-3">
