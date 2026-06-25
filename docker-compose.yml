@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "3000:3000"
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_SUPABASE_URL=${SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    depends_on:
+      - postgres
+      - redis
+    command: npm run dev
+    networks:
+      - webhookpulse
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: webhookpulse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webhookpulse
+      POSTGRES_PASSWORD: webhookpulse_dev
+      POSTGRES_DB: webhookpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - webhookpulse
+
+  redis:
+    image: redis:7-alpine
+    container_name: webhookpulse-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
+    networks:
+      - webhookpulse
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: webhookpulse-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@webhookpulse.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - webhookpulse
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: webhookpulse-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP
+    networks:
+      - webhookpulse
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  webhookpulse:
+    driver: bridge

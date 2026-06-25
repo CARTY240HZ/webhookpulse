@@ -2,15 +2,66 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebhookPulse</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0C0C0E" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)" />
+    <meta name="description" content="WebhookPulse — Capture and inspect every webhook. Real-time logs, secure secrets, and a dashboard built for precision." />
+    <meta name="keywords" content="webhook, discord webhook, roblox, webhook receiver, webhook logs" />
+    <meta name="author" content="WebhookPulse" />
+    <meta name="robots" content="index, follow" />
+    
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="WebhookPulse" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <!-- Preconnect to critical origins -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="dns-prefetch" href="https://supabase.co" />
+    <link rel="dns-prefetch" href="https://vercel.com" />
+    
+    <!-- Preload critical font -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    
+    <!-- Anti-FOUC theme script -->
+    <script>
+      (function() {
+        var theme = localStorage.getItem('webhookpulse-theme') || 'dark';
+        document.documentElement.className = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+    
+    <!-- Critical CSS inline -->
+    <style>
+      html { background: #0C0C0E; color: #E4E4E7; }
+      html.light { background: #F8F9FA; color: #1A1A2E; }
+      body { margin: 0; font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+      #root { min-height: 100vh; }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    </style>
+    
+    <title>WebhookPulse</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Service Worker registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function() {});
+        });
+      }
+    </script>
   </body>
 </html>
