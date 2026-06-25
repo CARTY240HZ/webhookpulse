@@ -28,12 +28,14 @@ const config: KnipConfig = {
     'vitest.config.ts',
     'tailwind.config.js',
     'postcss.config.js',
+    'knip.config.ts',
   ],
-  // Dependencies that are used implicitly or by Astro/Vite
+  // Dependencies that are used implicitly or by tooling
   ignoreDependencies: [
     '@types/react',
     '@types/react-dom',
     'autoprefixer',
+    'rollup-plugin-visualizer', // loaded conditionally in vite.config.ts
   ],
   // Ignore binaries that are used in scripts
   ignoreBinaries: [
