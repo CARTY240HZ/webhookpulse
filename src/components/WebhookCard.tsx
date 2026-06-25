@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Copy, Trash2, Activity, PauseCircle, PlayCircle, Zap } from 'lucide-react'
 import type { Webhook } from '../types'
+import HealthIndicator from './HealthIndicator'
 
 interface WebhookCardProps {
   webhook: Webhook
@@ -85,6 +86,7 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
                 Inactive
               </span>
             )}
+            <HealthIndicator webhookId={webhook.id} />
           </div>
         </div>
 
