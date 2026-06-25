@@ -10,6 +10,8 @@ import LogRow from '../components/LogRow'
 import SearchBar from '../components/SearchBar'
 import { t } from '../i18n'
 import IpRulesModal from '../components/IpRulesModal'
+import SseStatus from '../components/SseStatus'
+import { useVirtualList } from '../hooks/useVirtualList'
 import type { Webhook } from '../types'
 
 export default function WebhookDetailPage() {
@@ -53,6 +55,9 @@ export default function WebhookDetailPage() {
   const [showIpRules, setShowIpRules] = useState(false)
 
   const { rules: ipRules } = useIpRules(id || null)
+
+  // Virtual list for performance with large log sets
+  const { containerRef: logContainerRef, visibleItems: visibleLogs, totalHeight: logTotalHeight, offsetY: logOffsetY } = useVirtualList(logs, { itemHeight: 60, overscan: 5 })
 
   const handleExport = async () => {
     if (!id) return
@@ -262,6 +267,7 @@ export default function WebhookDetailPage() {
                 IP
               </span>
             )}
+            <SseStatus webhookId={webhook.id} />
           </div>
         </div>
 
@@ -475,15 +481,25 @@ export default function WebhookDetailPage() {
           )}
           {!logsLoading && logs.length > 0 && (
             <div>
-              {logs.map((log) => (
-                <LogRow
-                  key={log.id}
-                  log={log}
-                  selected={selectedIds.has(log.id)}
-                  onSelect={handleSelect}
-                  onDelete={(logId) => { deleteLog(logId); setSelectedIds((prev) => { const next = new Set(prev); next.delete(logId); return next }) }}
-                />
-              ))}
+              <div
+                ref={logContainerRef}
+                style={{ height: 600, overflowY: 'auto' }}
+                className="relative"
+              >
+                <div style={{ height: logTotalHeight, position: 'relative' }}>
+                  <div style={{ transform: `translateY(${logOffsetY}px)` }}>
+                    {visibleLogs.map((log) => (
+                      <LogRow
+                        key={log.id}
+                        log={log}
+                        selected={selectedIds.has(log.id)}
+                        onSelect={handleSelect}
+                        onDelete={(logId) => { deleteLog(logId); setSelectedIds((prev) => { const next = new Set(prev); next.delete(logId); return next }) }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
               {hasMore && (
                 <div className="px-4 py-4 text-center">
                   <button

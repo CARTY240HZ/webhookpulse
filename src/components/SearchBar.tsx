@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { t } from '../i18n'
+import { useDebounce } from '../hooks/useDebounce'
 import type { LogFilters } from '../hooks/useRealtimeLogs'
 
 interface SearchBarProps {
@@ -12,10 +13,21 @@ interface SearchBarProps {
 export default function SearchBar({ filters, onChange, sources }: SearchBarProps) {
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState<LogFilters>(filters)
+  const [searchInput, setSearchInput] = useState(filters.q || '')
+  const debouncedSearch = useDebounce(searchInput, 300)
 
   useEffect(() => {
     setDraft(filters)
+    setSearchInput(filters.q || '')
   }, [filters])
+
+  // Sync debounced search input into draft.q
+  useEffect(() => {
+    const currentQ = draft.q || ''
+    if (debouncedSearch !== currentQ) {
+      setDraft((prev) => ({ ...prev, q: debouncedSearch || undefined }))
+    }
+  }, [debouncedSearch, draft.q])
 
   const updateDraft = (key: keyof LogFilters, value: string | undefined) => {
     setDraft((prev) => ({ ...prev, [key]: value || undefined }))
@@ -89,8 +101,8 @@ export default function SearchBar({ filters, onChange, sources }: SearchBarProps
             </label>
             <input
               type="text"
-              value={draft.q || ''}
-              onChange={(e) => updateDraft('q', e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder={t('search.placeholder')}
               className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-text-primary placeholder-text-secondary focus:border-accent focus:outline-none transition-colors"
             />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-export interface HealthCheck {
+interface HealthCheck {
   status: string
   responseTimeMs: number
   checkedAt: string

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
-export type Theme = 'dark' | 'light'
+type Theme = 'dark' | 'light'
 
 let currentTheme: Theme = 'dark'
 
