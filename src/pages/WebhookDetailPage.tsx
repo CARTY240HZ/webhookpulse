@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff, LogOut } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff, LogOut, Shield } from 'lucide-react'
 import { useRealtimeLogs } from '../hooks/useRealtimeLogs'
 import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
 import { useAuth } from '../hooks/useAuth'
+import { useIpRules } from '../hooks/useIpRules'
 import LogRow from '../components/LogRow'
 import SearchBar from '../components/SearchBar'
 import { t } from '../i18n'
+import IpRulesModal from '../components/IpRulesModal'
 import type { Webhook } from '../types'
 
 export default function WebhookDetailPage() {
@@ -48,6 +50,9 @@ export default function WebhookDetailPage() {
   const [tokenError, setTokenError] = useState<string | null>(null)
   const [revealing, setRevealing] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showIpRules, setShowIpRules] = useState(false)
+
+  const { rules: ipRules } = useIpRules(id || null)
 
   const handleExport = async () => {
     if (!id) return
@@ -251,6 +256,12 @@ export default function WebhookDetailPage() {
                 Inactive
               </span>
             )}
+            {ipRules.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-accent/10 text-accent">
+                <Shield className="w-3 h-3" />
+                IP
+              </span>
+            )}
           </div>
         </div>
 
@@ -429,6 +440,13 @@ export default function WebhookDetailPage() {
                 <Download className="w-3.5 h-3.5" />
                 {exporting ? 'Exporting...' : 'Export CSV'}
               </button>
+              <button
+                onClick={() => setShowIpRules(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                IP Rules
+              </button>
             </div>
           )}
         </div>
@@ -481,6 +499,10 @@ export default function WebhookDetailPage() {
           )}
         </div>
       </div>
+
+      {showIpRules && id && (
+        <IpRulesModal webhookId={id} onClose={() => setShowIpRules(false)} />
+      )}
     </div>
   )
 }

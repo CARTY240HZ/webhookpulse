@@ -5,6 +5,7 @@ import { checkRateLimit } from './_lib/ratelimit.js'
 import { apiError } from './_lib/errors.js'
 import { verifySecret } from './_lib/hmac.js'
 import { captureException } from './_lib/sentry.js'
+import { checkIpAgainstRules } from './_lib/ipfilter.js'
 
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
 
@@ -114,6 +115,19 @@ export default async function handler(req: any, res: any) {
     
     if (!secretValid) {
       return res.status(200).json({ received: true })
+    }
+
+    // 6.5. IP filtering
+    if (ipAddress) {
+      const { data: ipRules } = await supabase
+        .from('ip_rules')
+        .select('ip, action')
+        .eq('webhook_id', webhook.id)
+
+      const ipCheck = checkIpAgainstRules(ipAddress, ipRules || [])
+      if (!ipCheck.allowed) {
+        return apiError(res, 403, ipCheck.reason || 'IP_BLOCKED')
+      }
     }
 
     // 7. Rate limiting

@@ -6,6 +6,20 @@ export type TranslationKey =
   | 'nav.logout'
   | 'nav.back'
   | 'nav.home'
+  | 'ipRules.title'
+  | 'ipRules.enabled'
+  | 'ipRules.addRule'
+  | 'ipRules.ip'
+  | 'ipRules.action'
+  | 'ipRules.allow'
+  | 'ipRules.block'
+  | 'ipRules.description'
+  | 'ipRules.delete'
+  | 'ipRules.invalidIp'
+  | 'ipRules.ipBlocked'
+  | 'ipRules.ipNotAllowed'
+  | 'ipRules.noRules'
+  | 'ipRules.cidr'
   | 'settings.title'
   | 'settings.subtitle'
   | 'settings.profile'
@@ -107,6 +121,20 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'nav.logout': 'Sign out',
     'nav.back': 'Back',
     'nav.home': 'Home',
+    'ipRules.title': 'IP Access Control',
+    'ipRules.enabled': 'IP filtering enabled',
+    'ipRules.addRule': 'Add Rule',
+    'ipRules.ip': 'IP Address',
+    'ipRules.action': 'Action',
+    'ipRules.allow': 'Allow',
+    'ipRules.block': 'Block',
+    'ipRules.description': 'Description (optional)',
+    'ipRules.delete': 'Delete',
+    'ipRules.invalidIp': 'Invalid IP address',
+    'ipRules.ipBlocked': 'IP blocked',
+    'ipRules.ipNotAllowed': 'IP not in allowlist',
+    'ipRules.noRules': 'No rules configured',
+    'ipRules.cidr': 'Supports CIDR (e.g., 192.168.1.0/24)',
     'settings.title': 'Settings',
     'settings.subtitle': 'Manage your profile, security, and preferences.',
     'settings.profile': 'Profile',
@@ -207,6 +235,20 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'nav.logout': 'Cerrar sesión',
     'nav.back': 'Atrás',
     'nav.home': 'Inicio',
+    'ipRules.title': 'Control de Acceso IP',
+    'ipRules.enabled': 'Filtrado IP activado',
+    'ipRules.addRule': 'Añadir Regla',
+    'ipRules.ip': 'Dirección IP',
+    'ipRules.action': 'Acción',
+    'ipRules.allow': 'Permitir',
+    'ipRules.block': 'Bloquear',
+    'ipRules.description': 'Descripción (opcional)',
+    'ipRules.delete': 'Eliminar',
+    'ipRules.invalidIp': 'Dirección IP inválida',
+    'ipRules.ipBlocked': 'IP bloqueada',
+    'ipRules.ipNotAllowed': 'IP no permitida',
+    'ipRules.noRules': 'Sin reglas configuradas',
+    'ipRules.cidr': 'Soporta CIDR (ej. 192.168.1.0/24)',
     'settings.title': 'Ajustes',
     'settings.subtitle': 'Gestiona tu perfil, seguridad y preferencias.',
     'settings.profile': 'Perfil',

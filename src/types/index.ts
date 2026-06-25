@@ -61,6 +61,15 @@ export interface WebhookLog {
   created_at: string
 }
 
+export interface IpRule {
+  id: string
+  webhook_id: string
+  ip: string
+  action: 'allow' | 'block'
+  description?: string
+  created_at: string
+}
+
 export interface AuthState {
   user: { id: string; email?: string } | null
   profile: Profile | null

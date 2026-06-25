@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { getSupabase } from '../../_lib/supabase.js'
 import { captureException } from '../../_lib/sentry.js'
+import { checkIpAgainstRules } from '../../_lib/ipfilter.js'
 import { isValidUUID } from '../../_lib/validate.js'
 import { checkRateLimit } from '../../_lib/ratelimit.js'
 
@@ -412,10 +413,23 @@ export default async function handler(req: any, res: any) {
       return discordErrorForm(res, 400, formErrors)
     }
 
-    // --- Rate limit (Discord: 5 req / 2 sec per webhook) ---
+    // --- IP filtering ---
     const rawIp = req.headers['x-forwarded-for'] || req.headers['client-ip'] || null
     const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
 
+    if (ipAddress) {
+      const { data: ipRules } = await supabase
+        .from('ip_rules')
+        .select('ip, action')
+        .eq('webhook_id', webhook.id)
+
+      const ipCheck = checkIpAgainstRules(ipAddress, ipRules || [])
+      if (!ipCheck.allowed) {
+        return discordError(res, 403, { code: 0, message: 'Forbidden' })
+      }
+    }
+
+    // --- Rate limit (Discord: 5 req / 2 sec per webhook) ---
     if (ipAddress) {
       const allowed = await checkRateLimit(supabase, ipAddress)
       if (!allowed) {
