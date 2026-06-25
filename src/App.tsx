@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
+import { useTheme, setTheme } from './hooks/useTheme'
 import Layout from './components/Layout'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -15,9 +17,19 @@ import StatsPage from './pages/StatsPage'
 function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <ThemeProvider>
+        <AppRoutes />
+      </ThemeProvider>
     </AuthProvider>
   )
+}
+
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme()
+  useEffect(() => {
+    setTheme(theme)
+  }, [theme])
+  return <>{children}</>
 }
 
 function AppRoutes() {

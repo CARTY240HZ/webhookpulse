@@ -3,29 +3,29 @@ export interface Profile {
   full_name?: string
   avatar_url?: string
   phone?: string
-  bio?: string
   location?: string
-  website?: string
   theme?: string
   notifications_enabled?: boolean
   language?: string
   created_at: string
   updated_at: string
   email?: string
+  phone_verified?: boolean
+  two_factor_enabled?: boolean
 }
 
 export interface AccountSettings {
   email: string
   full_name: string
   phone: string
-  bio: string
   location: string
-  website: string
   theme: string
   notifications_enabled: boolean
   language: string
   created_at: string
   updated_at: string
+  phone_verified?: boolean
+  two_factor_enabled?: boolean
 }
 
 export interface Webhook {
