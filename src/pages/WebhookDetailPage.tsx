@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff, LogOut, Shield } from 'lucide-react'
+import { Copy, Trash2, Activity, CheckSquare, Square, Download, Eye, EyeOff, LogOut, Shield } from 'lucide-react'
 import { useRealtimeLogs } from '../hooks/useRealtimeLogs'
 import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
-import { useAuth } from '../hooks/useAuth'
 import { useIpRules } from '../hooks/useIpRules'
 import LogRow from '../components/LogRow'
 import SearchBar from '../components/SearchBar'
@@ -33,7 +32,6 @@ export default function WebhookDetailPage() {
     deleteAllLogs,
     filters,
     setFilters,
-    activeFilterCount,
     totalCount,
     hasActiveFilters,
   } = useRealtimeLogs(id || null, webhookType)
