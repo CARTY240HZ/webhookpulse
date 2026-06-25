@@ -6,13 +6,33 @@ import { supabase } from '../lib/supabase'
 import { useWebhooks } from '../hooks/useWebhooks'
 import { useAuth } from '../hooks/useAuth'
 import LogRow from '../components/LogRow'
+import SearchBar from '../components/SearchBar'
+import { t } from '../i18n'
 import type { Webhook } from '../types'
 
 export default function WebhookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { webhooks, refresh } = useWebhooks()
-  const { logs, loading: logsLoading, loadingMore, hasMore, loadMore, deleteLog, deleteSelectedLogs, deleteAllLogs } = useRealtimeLogs(id || null)
+  const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
+  const isDiscord = webhook?.has_secret && !!webhook.discord_url
+  const webhookType = isDiscord ? 'discord' : 'native'
+
+  const {
+    logs,
+    loading: logsLoading,
+    loadingMore,
+    hasMore,
+    loadMore,
+    deleteLog,
+    deleteSelectedLogs,
+    deleteAllLogs,
+    filters,
+    setFilters,
+    activeFilterCount,
+    totalCount,
+    hasActiveFilters,
+  } = useRealtimeLogs(id || null, webhookType)
   const [copied, setCopied] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -63,8 +83,6 @@ export default function WebhookDetailPage() {
     }
   }
 
-  const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
-  const isDiscord = webhook?.has_secret && !!webhook.discord_url
   const typeLabel = isDiscord ? 'Discord' : 'Native'
   const typeColor = isDiscord ? 'bg-blue-500/10 text-blue-400' : 'bg-accent/10 text-accent'
 
@@ -362,7 +380,14 @@ export default function WebhookDetailPage() {
 
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Recent logs</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-text-primary">Recent logs</h2>
+            {hasActiveFilters && (
+              <span className="text-sm text-text-secondary">
+                {t('search.results', { count: totalCount })}
+              </span>
+            )}
+          </div>
           {!logsLoading && logs.length > 0 && (
             <div className="flex items-center gap-2">
               <button
@@ -408,11 +433,26 @@ export default function WebhookDetailPage() {
           )}
         </div>
 
-        <div className="bg-surface border border-border rounded overflow-hidden">
+        <SearchBar
+          filters={filters}
+          onChange={setFilters}
+          sources={Array.from(
+            new Set(
+              logs
+                .map((l) => l.payload?.source)
+                .filter((s): s is string => typeof s === 'string')
+            )
+          )}
+        />
+
+        <div className="bg-surface border border-border rounded overflow-hidden mt-4">
           {logsLoading && (
             <div className="px-4 py-6 text-sm text-text-secondary text-center">Loading logs...</div>
           )}
-          {!logsLoading && logs.length === 0 && (
+          {!logsLoading && logs.length === 0 && hasActiveFilters && (
+            <div className="px-4 py-6 text-sm text-text-secondary text-center">{t('search.noResults')}</div>
+          )}
+          {!logsLoading && logs.length === 0 && !hasActiveFilters && (
             <div className="px-4 py-6 text-sm text-text-secondary text-center">No logs yet. Send a request to the URL above.</div>
           )}
           {!logsLoading && logs.length > 0 && (

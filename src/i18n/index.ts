@@ -85,6 +85,18 @@ export type TranslationKey =
   | 'webhooks.templates.generate'
   | 'webhooks.templates.copy'
   | 'webhooks.templates.preview'
+  | 'search.title'
+  | 'search.placeholder'
+  | 'search.ip'
+  | 'search.from'
+  | 'search.to'
+  | 'search.source'
+  | 'search.type'
+  | 'search.all'
+  | 'search.apply'
+  | 'search.clear'
+  | 'search.results'
+  | 'search.noResults'
 
 export const translations: Record<string, Record<TranslationKey, string>> = {
   en: {
@@ -174,6 +186,18 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'webhooks.templates.generate': 'Generate Lua Script',
     'webhooks.templates.copy': 'Copy Script',
     'webhooks.templates.preview': 'Preview',
+    'search.title': 'Search Logs',
+    'search.placeholder': 'Search in payload...',
+    'search.ip': 'IP Address',
+    'search.from': 'From',
+    'search.to': 'To',
+    'search.source': 'Source',
+    'search.type': 'Type',
+    'search.all': 'All',
+    'search.apply': 'Apply',
+    'search.clear': 'Clear Filters',
+    'search.results': 'Showing {{count}} results',
+    'search.noResults': 'No logs match your filters',
   },
   es: {
     'app.name': 'WebhookPulse',
@@ -262,6 +286,18 @@ export const translations: Record<string, Record<TranslationKey, string>> = {
     'webhooks.templates.generate': 'Generar Script Lua',
     'webhooks.templates.copy': 'Copiar Script',
     'webhooks.templates.preview': 'Vista Previa',
+    'search.title': 'Buscar Logs',
+    'search.placeholder': 'Buscar en payload...',
+    'search.ip': 'Dirección IP',
+    'search.from': 'Desde',
+    'search.to': 'Hasta',
+    'search.source': 'Origen',
+    'search.type': 'Tipo',
+    'search.all': 'Todos',
+    'search.apply': 'Aplicar',
+    'search.clear': 'Limpiar Filtros',
+    'search.results': 'Mostrando {{count}} resultados',
+    'search.noResults': 'Ningún log coincide con tus filtros',
   },
 }
 
@@ -285,9 +321,15 @@ export function getLang(): LangCode {
   return currentLang
 }
 
-export function t(key: TranslationKey): string {
+export function t(key: TranslationKey, vars?: Record<string, string | number>): string {
   const lang = getLang()
-  return translations[lang]?.[key] || translations['en'][key] || key
+  let text = translations[lang]?.[key] || translations['en'][key] || key
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      text = text.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), String(v))
+    }
+  }
+  return text
 }
 
 // Initialize from localStorage on load

@@ -2,7 +2,7 @@ import { getSupabase } from './_lib/supabase.js'
 import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { isValidUUID } from './_lib/validate.js'
-import { apiError } from './_lib/errors.js'
+import { apiError, apiSuccess } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 
 export default async function handler(req: any, res: any) {
@@ -10,6 +10,8 @@ export default async function handler(req: any, res: any) {
     setCorsHeaders(res, 'private')
     return res.status(204).end()
   }
+
+  setCorsHeaders(res, 'private')
 
   if (req.method !== 'GET' && req.method !== 'DELETE') {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')
@@ -28,9 +30,10 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 400, 'INVALID_WEBHOOK_ID')
     }
 
+    // Verify ownership and retrieve webhook type info for type filtering
     const { data: webhook, error: ownerError } = await supabase
       .from('webhooks')
-      .select('id')
+      .select('id, has_secret, discord_url')
       .eq('id', webhookId)
       .eq('user_id', user.id)
       .single()
@@ -72,19 +75,68 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, deleted: logIds.length })
     }
 
-    const { data: logs, error } = await supabase
+    // Parse query parameters for filtering
+    const q = typeof req.query?.q === 'string' ? req.query.q : undefined
+    const ip = typeof req.query?.ip === 'string' ? req.query.ip : undefined
+    const from = typeof req.query?.from === 'string' ? req.query.from : undefined
+    const to = typeof req.query?.to === 'string' ? req.query.to : undefined
+    const source = typeof req.query?.source === 'string' ? req.query.source : undefined
+    const type = typeof req.query?.type === 'string' ? req.query.type : undefined
+
+    // Type filter: since the endpoint is scoped to a single webhook,
+    // verify the webhook's type matches the requested filter.
+    const webhookIsDiscord = webhook.has_secret && !!webhook.discord_url
+    if (type) {
+      if (type === 'discord' && !webhookIsDiscord) {
+        return apiSuccess(res, { logs: [], total: 0, page: 1, limit: 50, hasMore: false })
+      }
+      if (type === 'native' && webhookIsDiscord) {
+        return apiSuccess(res, { logs: [], total: 0, page: 1, limit: 50, hasMore: false })
+      }
+    }
+
+    const page = Math.max(1, parseInt(req.query?.page || '1', 10))
+    const limit = Math.min(200, Math.max(1, parseInt(req.query?.limit || '50', 10)))
+    const offset = (page - 1) * limit
+
+    let query = supabase
       .from('webhook_logs')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('webhook_id', webhookId)
       .order('created_at', { ascending: false })
-      .limit(200)
+      .range(offset, offset + limit - 1)
+
+    if (q) {
+      query = query.ilike('payload::text', `%${q}%`)
+    }
+
+    if (ip) {
+      query = query.eq('ip_address', ip)
+    }
+
+    if (from) {
+      query = query.gte('created_at', from)
+    }
+
+    if (to) {
+      query = query.lte('created_at', to)
+    }
+
+    if (source) {
+      query = query.eq('payload->>source', source)
+    }
+
+    const { data: logs, error, count } = await query
 
     if (error) {
       captureException(error)
       return apiError(res, 500, 'LOGS_FETCH_FAILED')
     }
 
-    return res.status(200).json({ logs: logs || [] })
+    const total = count ?? 0
+    const hasMore = offset + (logs?.length ?? 0) < total
+
+    return apiSuccess(res, { logs: logs || [], total, page, limit, hasMore })
   } catch (err) {
     captureException(err as Error)
     return apiError(res, 500, 'INTERNAL_ERROR')
