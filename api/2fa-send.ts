@@ -21,8 +21,8 @@ export default async function handler(req: any, res: any) {
     const phone = body.phone?.toString().trim()
     if (!phone || phone.length < 8) return apiError(res, 400, 'INVALID_PHONE')
 
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    // Generate 6-digit code with cryptographically secure RNG
+    const code = crypto.randomInt(100000, 999999).toString().padStart(6, '0')
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 min
 
     // Store in DB (simple table or use profiles directly)
@@ -38,12 +38,11 @@ export default async function handler(req: any, res: any) {
 
     if (error) {
       console.error('2FA send error:', error)
-      // If columns don't exist, we still return success for demo
       // In production, you'd use an SMS service here (Twilio, etc.)
-      return res.status(200).json({
-        success: true,
-        message: 'Code generated (demo mode - SMS not configured)',
-        code: code, // Only in development! Remove in production
+      return res.status(500).json({
+        success: false,
+        error: 'SMS_SERVICE_NOT_CONFIGURED',
+        message: 'Verification service unavailable. Please try again later.',
       })
     }
 

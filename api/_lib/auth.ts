@@ -2,6 +2,7 @@ import { getSupabase } from './supabase.js'
 import { setUserContext } from './sentry.js'
 
 export async function getUserFromJWT(authHeader: string): Promise<{ id: string } | null> {
+  if (!authHeader.startsWith('Bearer ')) return null
   const token = authHeader.replace('Bearer ', '').trim()
   if (!token) return null
 

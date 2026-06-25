@@ -3,6 +3,7 @@ import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
+import crypto from 'crypto'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
@@ -30,12 +31,7 @@ export default async function handler(req: any, res: any) {
       .single()
 
     if (error || !profile) {
-      // Fallback: in demo mode, accept any code if columns don't exist
-      return res.status(200).json({
-        success: true,
-        message: 'Phone verified (demo mode)',
-        demo: true,
-      })
+      return apiError(res, 400, '2FA_NOT_CONFIGURED')
     }
 
     // Check expiration
@@ -43,13 +39,14 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 400, 'CODE_EXPIRED')
     }
 
-    // Verify code
-    if (profile.two_factor_code !== code) {
+    // Verify code with timing-safe comparison
+    const storedCode = profile.two_factor_code || ''
+    if (storedCode.length !== code.length || !crypto.timingSafeEqual(Buffer.from(storedCode), Buffer.from(code))) {
       return apiError(res, 400, 'INVALID_CODE')
     }
 
     // Mark as verified
-    await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({
         phone_verified: true,
@@ -58,6 +55,11 @@ export default async function handler(req: any, res: any) {
         two_factor_expires: null,
       })
       .eq('id', user.id)
+
+    if (updateError) {
+      captureException(updateError)
+      return apiError(res, 500, 'VERIFICATION_UPDATE_FAILED')
+    }
 
     return res.status(200).json({
       success: true,

@@ -8,10 +8,17 @@ import { captureException } from './_lib/sentry.js'
 const MAX_EXPORT_ROWS = 10_000
 
 function escapeCsvCell(value: string): string {
-  if (value.includes('"') || value.includes(',') || value.includes('\n') || value.includes('\r')) {
-    return '"' + value.replace(/"/g, '""') + '"'
+  // Prevent CSV injection: prefix formulas that Excel/LibreOffice would execute
+  const dangerous = /^[\=\+\-\@\%\t]/
+  let sanitized = value
+  if (dangerous.test(value)) {
+    sanitized = "'" + value
   }
-  return value
+  // Escape quotes and wrap if contains special chars
+  if (sanitized.includes('"') || sanitized.includes(',') || sanitized.includes('\n') || sanitized.includes('\r')) {
+    return '"' + sanitized.replace(/"/g, '""') + '"'
+  }
+  return sanitized
 }
 
 export default async function handler(req: any, res: any) {

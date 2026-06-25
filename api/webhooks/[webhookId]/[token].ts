@@ -258,8 +258,12 @@ function validateEmbed(embed: any, index: number): string[] {
 }
 
 export default async function handler(req: any, res: any) {
-  // CORS (Discord doesn't send CORS headers, but we do for browser compatibility)
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  // CORS: restrict to same-origin for Discord webhook endpoint (prevents CSRF from malicious sites)
+  const appUrl = process.env.APP_URL || 'https://webhookpulse.vercel.app'
+  const origin = req.headers.origin || ''
+  if (origin && (origin === appUrl || origin.endsWith('.vercel.app'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
 
@@ -307,7 +311,7 @@ export default async function handler(req: any, res: any) {
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
     }
 
-    if (token !== storedToken) {
+    if (!crypto.timingSafeEqual(Buffer.from(token), Buffer.from(storedToken))) {
       return discordError(res, 401, ERR_UNKNOWN_WEBHOOK)
     }
 

@@ -6,6 +6,7 @@ import { apiError } from './_lib/errors.js'
 import { verifySecret } from './_lib/hmac.js'
 import { captureException } from './_lib/sentry.js'
 import { checkIpAgainstRules } from './_lib/ipfilter.js'
+import crypto from 'crypto'
 
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
 
@@ -73,23 +74,24 @@ export default async function handler(req: any, res: any) {
           payload = req.body
         }
       }
-    } catch {
+    } catch (parseErr) {
+      captureException(parseErr as Error)
       payload = {}
     }
 
-    // 4. Extract IP
-    const rawIp = req.headers['x-forwarded-for'] || req.headers['client-ip'] || null
+    // 4. Extract IP (trust Vercel's forwarded header, not raw x-forwarded-for)
+    const rawIp = req.headers['x-vercel-forwarded-for'] || req.headers['x-vercel-ip'] || req.headers['x-forwarded-for'] || req.headers['client-ip'] || null
     const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
 
-    // 5. Find webhook (silently — S10 honeypot)
+    // 5. Find webhook by path (indexed query, not in-memory filter)
     const pathStr = String(path)
-    const { data: allWebhooks, error: findError } = await supabase
+    const { data: webhook, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, is_active, url_path')
-    
-    const webhook = allWebhooks?.find((h: any) => h.url_path === pathStr) || null
+      .select('id, secret, secret_hash, is_active, url_path')
+      .eq('url_path', pathStr)
+      .single()
 
-    // S10: If webhook doesn't exist or is inactive, return 200 anyway
+    // S10: If webhook doesn't exist or is inactive, return 200 anyway (honeypot)
     if (findError || !webhook) {
       return res.status(200).json({ received: true })
     }
@@ -98,26 +100,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
-    // 6. Check secret (S2: HMAC verification, backward-compatible)
-    const providedSecret = req.headers['x-webhook-secret'] || ''
-    let secretValid = false
-    
-    // NOTE: secret_hash column doesn't exist in DB yet — use legacy secret only
-    const hasSecretPlain = webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null'
-    
-    if (hasSecretPlain && providedSecret) {
-      // Legacy: direct comparison
-      secretValid = String(providedSecret) === String(webhook.secret)
-    } else if (!hasSecretPlain) {
-      // No secret configured — allow all
-      secretValid = true
-    }
-    
-    if (!secretValid) {
-      return res.status(200).json({ received: true })
-    }
-
-    // 6.5. IP filtering
+    // 6. IP filtering (before secret check — prevents secret probing from blocked IPs)
     if (ipAddress) {
       const { data: ipRules } = await supabase
         .from('ip_rules')
@@ -126,8 +109,30 @@ export default async function handler(req: any, res: any) {
 
       const ipCheck = checkIpAgainstRules(ipAddress, ipRules || [])
       if (!ipCheck.allowed) {
-        return apiError(res, 403, ipCheck.reason || 'IP_BLOCKED')
+        return res.status(200).json({ received: true, reason: 'ip_blocked' })
       }
+    }
+
+    // 7. Check secret (S2: HMAC-SHA256 constant-time verification)
+    const providedSecret = req.headers['x-webhook-secret'] || ''
+    let secretValid = false
+    
+    if (webhook.secret_hash && String(webhook.secret_hash).trim() !== '') {
+      // New: hashed secret with timing-safe comparison
+      secretValid = verifySecret(String(providedSecret), String(webhook.secret_hash))
+    } else if (webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null') {
+      // Legacy: direct comparison (deprecated, migrate to secret_hash)
+      secretValid = crypto.timingSafeEqual(
+        Buffer.from(String(providedSecret)),
+        Buffer.from(String(webhook.secret))
+      )
+    } else {
+      // No secret configured — allow all
+      secretValid = true
+    }
+    
+    if (!secretValid) {
+      return res.status(200).json({ received: true })
     }
 
     // 7. Rate limiting
@@ -152,7 +157,8 @@ export default async function handler(req: any, res: any) {
       .select('id')
       .single()
 
-    if (insertResult.error && insertResult.error.message.includes('inet')) {
+    if (insertResult.error && insertResult.error.code === '22P02') {
+      // 22P02 = invalid_text_representation (inet type error)
       insertResult = await supabase
         .from('webhook_logs')
         .insert({

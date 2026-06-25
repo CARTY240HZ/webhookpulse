@@ -39,7 +39,11 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 404, 'WEBHOOK_NOT_FOUND')
     }
 
-    const { error: deleteError } = await supabase.from('webhooks').delete().eq('id', id)
+    const { error: deleteError } = await supabase
+      .from('webhooks')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
 
     if (deleteError) {
       captureException(deleteError)

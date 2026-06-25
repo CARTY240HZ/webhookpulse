@@ -11,7 +11,7 @@ function generateSlug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-  const rand = Math.random().toString(36).substring(2, 8)
+  const rand = crypto.randomBytes(3).toString('hex')
   return `${base}-${rand}`
 }
 
@@ -61,6 +61,9 @@ export default async function handler(req: any, res: any) {
 
     const urlPath = generateSlug(name)
     const type = (body.type as string) || 'native'
+    if (type !== 'native' && type !== 'discord') {
+      return apiError(res, 400, 'INVALID_TYPE')
+    }
     
     let secret: string | null = null
     let discordUrl: string | null = null
@@ -87,7 +90,7 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'WEBHOOK_CREATE_FAILED')
     }
 
-    // Return URLs based on type
+    // Return URLs based on type (token only shown once — copy it immediately)
     const baseUrl = process.env.APP_URL || 'https://webhookpulse.vercel.app'
     const nativeUrl = `${baseUrl}/api/webhook-receive?path=${urlPath}`
     
@@ -103,6 +106,7 @@ export default async function handler(req: any, res: any) {
     if (discordUrl) {
       response.discord_url = discordUrl
       response.token = secret
+      response.warning = 'Copy this token now — it will not be shown again'
     }
 
     return res.status(201).json(response)

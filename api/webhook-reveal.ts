@@ -41,12 +41,12 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 401, 'USER_EMAIL_NOT_FOUND')
     }
 
-    // Create a temporary auth client to verify password
+    // Verify password without creating a session (using signIn + immediate signOut)
     const { createClient } = await import('@supabase/supabase-js')
     const supabaseUrl = process.env.SUPABASE_URL || ''
-    const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || ''
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
     
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    const authClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
@@ -54,6 +54,9 @@ export default async function handler(req: any, res: any) {
       email,
       password,
     })
+
+    // Immediately sign out to prevent session accumulation
+    await authClient.auth.signOut({ scope: 'local' })
 
     if (signInError) {
       return apiError(res, 401, 'INVALID_PASSWORD')
