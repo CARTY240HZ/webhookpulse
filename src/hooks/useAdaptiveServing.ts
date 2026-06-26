@@ -7,6 +7,21 @@ interface ConnectionInfo {
   rtt: number
 }
 
+interface NetworkInformation {
+  effectiveType?: '2g' | '3g' | '4g' | 'slow-2g' | 'unknown'
+  saveData?: boolean
+  downlink?: number
+  rtt?: number
+  addEventListener: (type: string, listener: () => void) => void
+  removeEventListener: (type: string, listener: () => void) => void
+}
+
+interface NavigatorWithConnection extends Navigator {
+  connection?: NetworkInformation
+  mozConnection?: NetworkInformation
+  webkitConnection?: NetworkInformation
+}
+
 export function useAdaptiveServing(): ConnectionInfo {
   const [connection, setConnection] = useState<ConnectionInfo>({
     effectiveType: '4g',
@@ -16,7 +31,7 @@ export function useAdaptiveServing(): ConnectionInfo {
   })
 
   useEffect(() => {
-    const nav = navigator as any
+    const nav = navigator as NavigatorWithConnection
     const conn = nav.connection || nav.mozConnection || nav.webkitConnection
 
     if (!conn) return
