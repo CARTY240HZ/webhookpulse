@@ -135,6 +135,12 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
+    // Health-check probe: do NOT store log or apply rate limit
+    const isHealthCheck = req.headers['x-health-check'] === 'true' || req.headers['X-Health-Check'] === 'true'
+    if (isHealthCheck) {
+      return res.status(200).json({ received: true, health_check: true })
+    }
+
     // 7. Rate limiting
     if (ipAddress) {
       const allowed = await checkRateLimit(supabase, ipAddress)
