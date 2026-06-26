@@ -25,6 +25,8 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose()
   }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
