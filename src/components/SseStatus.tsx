@@ -7,16 +7,9 @@ interface SseStatusProps {
 
 export default function SseStatus({ webhookId }: SseStatusProps) {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const { connected, lastEvent } = useSse(`${baseUrl}/api/sse-logs?webhookId=${webhookId}`, {
-    onMessage: (data) => {
-      // eslint-disable-next-line no-console
-      console.debug('[SSE] New log event:', data)
-    },
-    onError: (e) => {
-      // eslint-disable-next-line no-console
-      console.warn('[SSE] Connection error:', e)
-    },
-  })
+  const { connected, lastEvent } = useSse(
+    `${baseUrl}/api/sse-logs?webhookId=${webhookId}`,
+  )
 
   return (
     <div className="flex items-center gap-2 text-xs text-text-secondary">

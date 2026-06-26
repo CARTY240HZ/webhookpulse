@@ -1,0 +1,8 @@
+fix(1): useSse stale closure and any types
+
+- Rewrote useSse to use callback refs instead of deps, eliminating
+  reconnect loops caused by inline options object recreation.
+- Replaced localStorage.getItem('token') with supabase.auth.getSession().
+- Removed all any types: SseMessage interface with [key: string]: unknown.
+- Added exponential backoff with max 30s cap.
+- Updated SseStatus to avoid passing inline callback objects.

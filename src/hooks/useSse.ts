@@ -1,55 +1,77 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
 
-interface SseOptions {
-  onMessage?: (data: any) => void
+export interface SseMessage {
+  [key: string]: unknown
+}
+
+interface SseCallbacks {
+  onMessage?: (data: SseMessage) => void
   onError?: (error: Event) => void
   onConnect?: () => void
 }
 
-export function useSse(url: string, options: SseOptions = {}) {
+export function useSse(url: string, callbacks: SseCallbacks = {}) {
   const [connected, setConnected] = useState(false)
-  const [lastEvent, setLastEvent] = useState<any>(null)
+  const [lastEvent, setLastEvent] = useState<SseMessage | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
-  const reconnectTimeoutRef = useRef<number>()
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const reconnectAttemptsRef = useRef(0)
 
-  const connect = useCallback(() => {
+  // Stable refs for callbacks — prevents stale closure without needing options in deps
+  const onMessageRef = useRef(callbacks.onMessage)
+  const onErrorRef = useRef(callbacks.onError)
+  const onConnectRef = useRef(callbacks.onConnect)
+
+  onMessageRef.current = callbacks.onMessage
+  onErrorRef.current = callbacks.onError
+  onConnectRef.current = callbacks.onConnect
+
+  const connect = useCallback(async () => {
     if (eventSourceRef.current) return
 
-    const token = localStorage.getItem('token') || ''
+    // Get JWT from Supabase session (correct — not localStorage 'token')
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token || ''
+    if (!token) return
+
     const es = new EventSource(`${url}?token=${encodeURIComponent(token)}`)
     eventSourceRef.current = es
 
     es.onopen = () => {
       setConnected(true)
-      options.onConnect?.()
+      reconnectAttemptsRef.current = 0
+      onConnectRef.current?.()
     }
 
-    es.onmessage = (e) => {
+    es.addEventListener('log', (e: MessageEvent) => {
       try {
-        const data = JSON.parse(e.data)
+        const data = JSON.parse(e.data) as SseMessage
         setLastEvent(data)
-        options.onMessage?.(data)
+        onMessageRef.current?.(data)
       } catch {
-        // ignore malformed JSON
+        // malformed JSON — ignore
       }
-    }
+    })
 
     es.onerror = (e) => {
       setConnected(false)
-      options.onError?.(e)
+      onErrorRef.current?.(e)
       es.close()
       eventSourceRef.current = null
-      // Reconnect after 3s
-      reconnectTimeoutRef.current = window.setTimeout(connect, 3000)
+
+      // Exponential backoff: max 30s
+      reconnectAttemptsRef.current++
+      const delay = Math.min(3000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000)
+      reconnectTimeoutRef.current = setTimeout(() => connect(), delay)
     }
-  }, [url, options])
+  }, [url]) // url is the ONLY dependency — callbacks are via refs
 
   const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-    }
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
     eventSourceRef.current?.close()
     eventSourceRef.current = null
+    reconnectAttemptsRef.current = 0
     setConnected(false)
   }, [])
 
