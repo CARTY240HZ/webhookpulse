@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { BarChart3, Globe, Monitor, Users, Zap } from 'lucide-react'
+import { BarChart3, Globe, Monitor, Users, Zap, type LucideIcon } from 'lucide-react'
 
 interface HourlyData {
   hour: string
@@ -150,13 +150,13 @@ export default function StatsPage() {
     }
   }
 
-  const maxHourly = Math.max(...hourly.map((h) => h.count), 1)
-  const maxWebhook = Math.max(...webhooks.map((w) => w.count), 1)
-  const maxIp = Math.max(...topIps.map((i) => i.count), 1)
-  const maxSource = Math.max(...sources.map((s) => s.count), 1)
-  const totalSource = sources.reduce((sum, s) => sum + s.count, 0)
+  const maxHourly = useMemo(() => Math.max(...hourly.map((h) => h.count), 1), [hourly])
+  const maxWebhook = useMemo(() => Math.max(...webhooks.map((w) => w.count), 1), [webhooks])
+  const maxIp = useMemo(() => Math.max(...topIps.map((i) => i.count), 1), [topIps])
+  const maxSource = useMemo(() => Math.max(...sources.map((s) => s.count), 1), [sources])
+  const totalSource = useMemo(() => sources.reduce((sum, s) => sum + s.count, 0), [sources])
 
-  const Card = ({ icon: Icon, label, value }: { icon: any; label: string; value: string | number }) => (
+  const Card = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string | number }) => (
     <div className="bg-surface border border-border rounded p-5">
       <div className="flex items-center gap-3 mb-3">
         <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center">
@@ -168,7 +168,7 @@ export default function StatsPage() {
     </div>
   )
 
-  const BarChart = ({ data, max, labelKey }: { data: any[]; max: number; labelKey: string }) => (
+  const BarChart = ({ data, max, labelKey }: { data: Array<{ count: number } & Record<string, unknown>>; max: number; labelKey: string }) => (
     <div className="space-y-2">
       {data.map((item, i) => {
         const pct = max > 0 ? (item.count / max) * 100 : 0

@@ -1,5 +1,6 @@
-fix(4): WebhookDetailPage sign-out flow
+fix(5): StatsPage strict types and memoized calculations
 
-- Extracted inline sign-out to handleSignOut function.
-- Clears selectedIds and modal state before navigating to /.
-- Ensures no stale webhook data remains visible after logout.
+- Replaced all any types with strict LucideIcon and typed BarChart data.
+- Wrapped max*/totalSource calculations in useMemo to avoid
+  re-computation on every render.
+- Added note for future server-side aggregation if data volume grows.
