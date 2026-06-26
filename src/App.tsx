@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useTheme, setTheme } from './hooks/useTheme'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Lazy load non-critical routes for code splitting
 const LandingPage = lazy(() => import('./pages/LandingPage'))
@@ -23,8 +24,6 @@ function PageSkeleton() {
     </div>
   )
 }
-
-import ErrorBoundary from './components/ErrorBoundary'
 
 function App() {
   return (
