@@ -61,15 +61,15 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                     </button>
                   </div>
                 </div>
-                {(result as any).discord_url && (
+                {result.discord_url && (
                   <div>
                     <label className="text-xs text-text-secondary">Discord URL</label>
                     <div className="flex gap-2">
                       <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
-                        {(result as any).discord_url}
+                        {result.discord_url}
                       </code>
                       <button
-                        onClick={() => navigator.clipboard.writeText((result as any).discord_url)}
+                        onClick={() => navigator.clipboard.writeText(result.discord_url)}
                         className="text-xs text-accent hover:text-accent-hover"
                       >
                         Copy
@@ -77,15 +77,15 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                     </div>
                   </div>
                 )}
-                {(result as any).token && (
+                {result.token && (
                   <div>
                     <label className="text-xs text-text-secondary">Token</label>
                     <div className="flex gap-2">
                       <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
-                        {(result as any).token}
+                        {result.token}
                       </code>
                       <button
-                        onClick={() => navigator.clipboard.writeText((result as any).token)}
+                        onClick={() => navigator.clipboard.writeText(result.token)}
                         className="text-xs text-accent hover:text-accent-hover"
                       >
                         Copy
