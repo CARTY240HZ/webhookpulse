@@ -4,6 +4,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { isValidUUID } from './_lib/validate.js'
+import { checkRateLimit } from './_lib/ratelimit.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
@@ -34,12 +35,20 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 400, 'PASSWORD_REQUIRED')
     }
 
+    // Rate limit by IP (fail-closed)
+    const clientIp = req.headers['x-vercel-forwarded-for'] || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || ''
+    const allowed = await checkRateLimit(supabase, String(clientIp))
+    if (!allowed) return apiError(res, 429, 'RATE_LIMITED')
+
     // Verify password by attempting to sign in
     const { data: userData } = await supabase.auth.admin.getUserById(user.id)
     const email = userData?.user?.email
     if (!email) {
       return apiError(res, 401, 'USER_EMAIL_NOT_FOUND')
     }
+
+    // Artificial delay to mitigate timing attacks
+    await new Promise(r => setTimeout(r, 100 + Math.random() * 400))
 
     // Verify password without creating a session (using signIn + immediate signOut)
     const { createClient } = await import('@supabase/supabase-js')
