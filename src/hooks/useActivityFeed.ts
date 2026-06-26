@@ -90,7 +90,7 @@ export function useActivityFeed() {
       setLogs(initialLogs)
 
       subscription = supabase
-        .channel('activity_feed')
+        .channel(`activity_feed:${session.user.id}`)
         .on(
           'postgres_changes',
           {
