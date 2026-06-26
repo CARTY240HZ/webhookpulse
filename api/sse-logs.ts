@@ -3,14 +3,21 @@
 // Works in free tier with keep-alive connections
 
 import { createClient } from '@supabase/supabase-js'
+import { setCorsHeaders } from './_lib/cors.js'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
 
 export default async function handler(req: any, res: any) {
+  if (req.method === 'OPTIONS') {
+    setCorsHeaders(res, 'private', req.headers.origin)
+    return res.status(204).end()
+  }
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  setCorsHeaders(res, 'private', req.headers.origin)
 
   const { webhookId } = req.query
   if (!webhookId) {
