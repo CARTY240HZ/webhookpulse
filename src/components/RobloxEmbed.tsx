@@ -1,5 +1,6 @@
 import type { WebhookLog } from '../types'
 import { Gamepad2, User, Globe, Smartphone, Cpu, PersonStanding, Sun, Clock, AlertTriangle } from 'lucide-react'
+import { getLang } from '../i18n'
 
 interface RobloxEmbedProps {
   log: WebhookLog
@@ -34,10 +35,6 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
   const hasAnyData =
     Object.keys(p).length > 0 &&
     (p.source === 'roblox' || getPlayerField('userid') !== undefined || getPlayerField('username') !== undefined)
-
-import { getLang } from '../i18n'
-
-// ...
 
   const timestamp = p.timestamp
     ? new Date((p.timestamp as number) * 1000).toLocaleString(getLang() === 'es' ? 'es-ES' : 'en-US', {
