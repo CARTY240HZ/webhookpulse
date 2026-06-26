@@ -4,6 +4,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import crypto from 'crypto'
+import { hashSecret } from './_lib/hmac.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
@@ -29,12 +30,13 @@ export default async function handler(req: any, res: any) {
       // Generate 6-digit code with cryptographically secure RNG
       const code = crypto.randomInt(100000, 999999).toString().padStart(6, '0')
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 min
+      const hashedCode = hashSecret(code)
 
       const { error } = await supabase
         .from('profiles')
         .update({
           phone: phone,
-          two_factor_code: code,
+          two_factor_code: hashedCode,
           two_factor_expires: expiresAt,
         })
         .eq('id', user.id)
@@ -76,9 +78,10 @@ export default async function handler(req: any, res: any) {
         return apiError(res, 400, 'CODE_EXPIRED')
       }
 
-      // Verify code with timing-safe comparison
-      const storedCode = profile.two_factor_code || ''
-      if (storedCode.length !== code.length || !crypto.timingSafeEqual(Buffer.from(storedCode), Buffer.from(code))) {
+      // Verify code with timing-safe comparison using hashed code
+      const storedCodeHash = profile.two_factor_code || ''
+      const providedCodeHash = hashSecret(code)
+      if (storedCodeHash.length !== providedCodeHash.length || !crypto.timingSafeEqual(Buffer.from(storedCodeHash), Buffer.from(providedCodeHash))) {
         return apiError(res, 400, 'INVALID_CODE')
       }
 

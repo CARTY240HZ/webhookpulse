@@ -11,12 +11,11 @@ export function hashSecret(secret: string): string {
 }
 
 export function verifySecret(provided: string, storedHash: string): boolean {
+  const expectedHashLength = 64 // HMAC-SHA256 hex = 64 chars
+  if (storedHash.length !== expectedHashLength) return false
   const computed = hashSecret(provided)
-  try {
-    return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(storedHash, 'hex'))
-  } catch {
-    return false
-  }
+  if (computed.length !== expectedHashLength) return false
+  return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(storedHash, 'hex'))
 }
 
 export function generateToken(length: number = 32): string {
