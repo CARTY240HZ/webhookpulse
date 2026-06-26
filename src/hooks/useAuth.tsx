@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, type ReactNode } from 'react'
+import { useState, useEffect, createContext, useContext, useRef, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Profile, AuthState } from '../types'
 
@@ -17,8 +17,12 @@ const AuthContext = createContext<AuthContextValue>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, profile: null, loading: true })
+  const hasFetchedRef = useRef(false)
 
   useEffect(() => {
+    if (hasFetchedRef.current) return
+    hasFetchedRef.current = true
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       const user = session?.user ?? null
       if (user) {
