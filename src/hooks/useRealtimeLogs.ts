@@ -154,7 +154,7 @@ export function useRealtimeLogs(webhookId: string | null, webhookType?: 'native'
     return () => {
       subscription.unsubscribe()
     }
-  }, [webhookId, fetchLogs, webhookType, filters])
+  }, [webhookId, fetchLogs, webhookType, JSON.stringify(filters)])
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return
