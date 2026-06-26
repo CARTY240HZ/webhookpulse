@@ -24,13 +24,17 @@ function PageSkeleton() {
   )
 }
 
+import ErrorBoundary from './components/ErrorBoundary'
+
 function App() {
   return (
-    <AuthProvider>
-      <ThemeProvider>
-        <AppRoutes />
-      </ThemeProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ThemeProvider>
+          <AppRoutes />
+        </ThemeProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 

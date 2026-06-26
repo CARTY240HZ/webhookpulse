@@ -58,8 +58,15 @@ export default function HealthIndicator({ webhookId }: HealthIndicatorProps) {
   return (
     <div
       className="relative inline-flex"
+      tabIndex={0}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+      role="button"
+      aria-expanded={open}
+      aria-label="Health status indicator"
     >
       <span
         className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${statusBadgeClass(status)}`}

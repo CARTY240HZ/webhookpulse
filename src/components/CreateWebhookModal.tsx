@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, Plus, Zap, MessageSquare } from 'lucide-react'
 import type { Webhook } from '../types'
 
@@ -16,8 +16,15 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CreateResult | null>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    nameInputRef.current?.focus()
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') onClose()
+  }
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
@@ -33,7 +40,7 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onKeyDown={handleKeyDown}>
       <div className="bg-surface border border-border rounded-lg p-6 w-full max-w-lg mx-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-text-primary">Create Webhook</h2>
@@ -140,6 +147,7 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Name</label>
               <input
+                ref={nameInputRef}
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}

@@ -108,7 +108,7 @@ export default function SettingsPage() {
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([])
   const showToast = useCallback((msg: string, type: ToastType = 'info') => {
-    const id = Math.random().toString(36).slice(2)
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     setToasts(p => [...p, { id, message: msg, type }])
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000)
   }, [])

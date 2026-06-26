@@ -109,5 +109,5 @@ export function useIpRules(webhookId: string | null) {
     [webhookId]
   )
 
-  return { rules, loading, error, fetchRules, addRule, deleteRule, fetchedRef }
+  return { rules, loading, error, fetchRules, addRule, deleteRule }
 }

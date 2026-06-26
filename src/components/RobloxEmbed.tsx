@@ -35,8 +35,12 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
     Object.keys(p).length > 0 &&
     (p.source === 'roblox' || getPlayerField('userid') !== undefined || getPlayerField('username') !== undefined)
 
+import { getLang } from '../i18n'
+
+// ...
+
   const timestamp = p.timestamp
-    ? new Date((p.timestamp as number) * 1000).toLocaleString('es-ES', {
+    ? new Date((p.timestamp as number) * 1000).toLocaleString(getLang() === 'es' ? 'es-ES' : 'en-US', {
         year: 'numeric',
         month: 'short',
         day: '2-digit',
@@ -44,7 +48,7 @@ export default function RobloxEmbed({ log }: RobloxEmbedProps) {
         minute: '2-digit',
         second: '2-digit',
       })
-    : new Date(log.created_at).toLocaleString('es-ES')
+    : new Date(log.created_at).toLocaleString(getLang() === 'es' ? 'es-ES' : 'en-US')
 
   const Field = ({ label, value }: { label: string; value: string }) => (
     <div className="flex flex-col gap-0.5">
