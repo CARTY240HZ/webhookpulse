@@ -5,7 +5,7 @@ import { apiError, apiSuccess } from './_lib/errors.js'
 import { isValidIpOrCidr } from './_lib/ipfilter.js'
 
 export default async function handler(req: any, res: any) {
-  setCorsHeaders(res, 'private')
+  setCorsHeaders(res, 'private', req.headers.origin)
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end()

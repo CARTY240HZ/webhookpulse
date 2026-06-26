@@ -6,7 +6,7 @@ import { captureException } from './_lib/sentry.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    setCorsHeaders(res, 'private')
+    setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
   }
 
@@ -14,7 +14,7 @@ export default async function handler(req: any, res: any) {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
 
-  setCorsHeaders(res, 'private')
+  setCorsHeaders(res, 'private', req.headers.origin)
 
   try {
     const supabase = getSupabase()
@@ -59,7 +59,10 @@ export default async function handler(req: any, res: any) {
 
         const response = await fetch(nativeUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Health-Check': 'true'
+          },
           body: JSON.stringify({ type: 'health_check', timestamp: Date.now() }),
           signal: controller.signal,
         })

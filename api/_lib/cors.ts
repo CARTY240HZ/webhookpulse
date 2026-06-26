@@ -1,8 +1,11 @@
-export function getCorsHeaders(type: 'public' | 'private') {
+export function getCorsHeaders(type: 'public' | 'private', reqOrigin?: string) {
   const appUrl = process.env.APP_URL || ''
-  const origin = type === 'public' ? '*' : appUrl
+  let origin = type === 'public' ? '*' : appUrl
   if (type === 'private' && !origin) {
-    console.warn('APP_URL not set — CORS private requests may fail')
+    origin = reqOrigin || ''
+    if (!origin) {
+      console.warn('APP_URL not set and no request origin — CORS private requests may fail')
+    }
   }
   return {
     'Access-Control-Allow-Origin': origin || (type === 'public' ? '*' : ''),
@@ -11,8 +14,8 @@ export function getCorsHeaders(type: 'public' | 'private') {
   }
 }
 
-export function setCorsHeaders(res: any, type: 'public' | 'private'): void {
-  const headers = getCorsHeaders(type)
+export function setCorsHeaders(res: any, type: 'public' | 'private', reqOrigin?: string): void {
+  const headers = getCorsHeaders(type, reqOrigin)
   for (const [key, value] of Object.entries(headers)) {
     res.setHeader(key, value)
   }

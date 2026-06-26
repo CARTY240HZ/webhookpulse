@@ -1,6 +1,0 @@
-fix(5): StatsPage strict types and memoized calculations
-
-- Replaced all any types with strict LucideIcon and typed BarChart data.
-- Wrapped max*/totalSource calculations in useMemo to avoid
-  re-computation on every render.
-- Added note for future server-side aggregation if data volume grows.

@@ -23,11 +23,11 @@ function escapeCsvCell(value: string): string {
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    setCorsHeaders(res, 'private')
+    setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
   }
 
-  setCorsHeaders(res, 'private')
+  setCorsHeaders(res, 'private', req.headers.origin)
 
   if (req.method !== 'GET' && req.method !== 'DELETE') {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')

@@ -8,7 +8,7 @@ import { hashSecret } from './_lib/hmac.js'
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
-    setCorsHeaders(res, 'private')
+    setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
   }
 
