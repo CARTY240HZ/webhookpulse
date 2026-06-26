@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Activity, Loader2, Eye, EyeOff, AlertCircle, Mail, Lock } from 'lucide-react'
@@ -19,6 +19,15 @@ export default function LoginPage() {
   const [isLocked, setIsLocked] = useState(false)
   const [lockTimer, setLockTimer] = useState(0)
   const navigate = useNavigate()
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [])
 
   const validateEmail = useCallback((value: string): boolean => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -43,10 +52,12 @@ export default function LoginPage() {
     setIsLocked(true)
     const duration = 30
     setLockTimer(duration)
-    const interval = setInterval(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    intervalRef.current = setInterval(() => {
       setLockTimer((prev) => {
         if (prev <= 1) {
-          clearInterval(interval)
+          if (intervalRef.current) clearInterval(intervalRef.current)
+          intervalRef.current = null
           setIsLocked(false)
           setAttemptCount(0)
           return 0
