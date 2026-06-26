@@ -21,7 +21,7 @@ export function useWebhooks() {
       return
     }
     try {
-      const res = await fetch(`${API_BASE}/api/webhook-list`, {
+      const res = await fetch(`${API_BASE}/api/webhooks`, {
         headers: { 'Authorization': `Bearer ${session.access_token}` }
       })
       const data = await res.json()
@@ -45,7 +45,7 @@ export function useWebhooks() {
     const session = authData?.session
     if (!session) throw new Error('Not authenticated')
 
-    const res = await fetch(`${API_BASE}/api/webhook-create`, {
+    const res = await fetch(`${API_BASE}/api/webhooks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -33,3 +33,6 @@ public/_redirects
 
 # TypeScript
 *.tsbuildinfo
+
+.vercel
+.env*

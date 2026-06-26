@@ -186,7 +186,7 @@ export default function SettingsPage() {
     try {
       const { data: s } = await supabase.auth.getSession()
       const token = s.session?.access_token
-      const res = await fetch(`${API_BASE}/api/2fa-send`, {
+      const res = await fetch(`${API_BASE}/api/2fa`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ phone: phone2FA }),
@@ -206,8 +206,8 @@ export default function SettingsPage() {
     try {
       const { data: s } = await supabase.auth.getSession()
       const token = s.session?.access_token
-      const res = await fetch(`${API_BASE}/api/2fa-verify`, {
-        method: 'POST',
+      const res = await fetch(`${API_BASE}/api/2fa`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ phone: phone2FA, code: code2FA }),
       })

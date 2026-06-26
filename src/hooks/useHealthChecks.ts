@@ -39,7 +39,7 @@ export function useHealthChecks(webhookId: string | undefined) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/health-checks?webhookId=${encodeURIComponent(webhookId)}`, {
+      const res = await fetch(`${API_BASE}/api/health-check?webhookId=${encodeURIComponent(webhookId)}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await res.json()

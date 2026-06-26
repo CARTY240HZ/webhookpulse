@@ -67,7 +67,7 @@ export default function WebhookDetailPage() {
         alert('Session expired. Please log in again.')
         return
       }
-      const res = await fetch(`${baseUrl}/api/webhook-export?webhookId=${id}`, {
+      const res = await fetch(`${baseUrl}/api/webhook-logs?webhookId=${id}&format=csv`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) {

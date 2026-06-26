@@ -5,6 +5,22 @@ import { isValidUUID } from './_lib/validate.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 
+const MAX_EXPORT_ROWS = 10_000
+
+function escapeCsvCell(value: string): string {
+  // Prevent CSV injection: prefix formulas that Excel/LibreOffice would execute
+  const dangerous = /^[\=\+\-\@\%\t]/
+  let sanitized = value
+  if (dangerous.test(value)) {
+    sanitized = "'" + value
+  }
+  // Escape quotes and wrap if contains special chars
+  if (sanitized.includes('"') || sanitized.includes(',') || sanitized.includes('\n') || sanitized.includes('\r')) {
+    return '"' + sanitized.replace(/"/g, '""') + '"'
+  }
+  return sanitized
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, 'private')
@@ -75,6 +91,48 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, deleted: logIds.length })
     }
 
+    // ─── GET: CSV EXPORT or LIST LOGS ───
+    if (req.query?.format === 'csv') {
+      // S7: Cap at 10,000 rows
+      const { data: logs, error, count } = await supabase
+        .from('webhook_logs')
+        .select('id, created_at, ip_address, payload', { count: 'exact' })
+        .eq('webhook_id', webhookId)
+        .order('created_at', { ascending: false })
+        .limit(MAX_EXPORT_ROWS)
+
+      if (error) {
+        captureException(error)
+        return apiError(res, 500, 'LOGS_EXPORT_FAILED')
+      }
+
+      const rows = logs || []
+      const headers = ['id', 'created_at', 'source_ip', 'payload_json']
+      const csvRows = [headers.join(',')]
+
+      for (const row of rows) {
+        const payloadStr = row.payload ? JSON.stringify(row.payload) : ''
+        csvRows.push(
+          [
+            escapeCsvCell(String(row.id)),
+            escapeCsvCell(row.created_at ? new Date(row.created_at).toISOString() : ''),
+            escapeCsvCell(row.ip_address || ''),
+            escapeCsvCell(payloadStr),
+          ].join(',')
+        )
+      }
+
+      const csv = csvRows.join('\r\n')
+      const truncated = (count || 0) > MAX_EXPORT_ROWS
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename="webhook-logs-${webhookId}.csv"`)
+      if (truncated) res.setHeader('X-Truncated', 'true')
+
+      return res.status(200).send(csv)
+    }
+
+    // ─── LIST LOGS ───
     // Parse query parameters for filtering
     const q = typeof req.query?.q === 'string' ? req.query.q : undefined
     const ip = typeof req.query?.ip === 'string' ? req.query.ip : undefined
