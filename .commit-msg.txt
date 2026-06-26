@@ -1,6 +1,5 @@
-fix(3): useHealthChecks double-fetch prevention
+fix(4): WebhookDetailPage sign-out flow
 
-- Added AbortController to cancel in-flight fetches on unmount.
-- Added hasFetchedRef to prevent duplicate fetches during React
-  Strict Mode double-mount.
-- Gracefully ignores AbortError in catch block.
+- Extracted inline sign-out to handleSignOut function.
+- Clears selectedIds and modal state before navigating to /.
+- Ensures no stale webhook data remains visible after logout.

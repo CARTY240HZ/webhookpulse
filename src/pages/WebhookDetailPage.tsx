@@ -218,14 +218,18 @@ export default function WebhookDetailPage() {
     return <div className="text-sm text-danger">Webhook not found.</div>
   }
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setSelectedIds(new Set())
+    setShowIpRules(false)
+    navigate('/')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
         <button
-          onClick={async () => {
-            await supabase.auth.signOut()
-            navigate('/')
-          }}
+          onClick={handleSignOut}
           className="flex items-center gap-1.5 text-sm text-danger hover:text-danger/80 transition-colors"
         >
           <LogOut className="w-4 h-4" />
