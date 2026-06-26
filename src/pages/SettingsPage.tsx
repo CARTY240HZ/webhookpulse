@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ComponentType } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
@@ -20,6 +20,49 @@ const LANGUAGES: { code: LangCode; label: string }[] = [
   { code: 'en', label: 'English' },
   { code: 'es', label: 'Español' },
 ]
+
+interface CardProps { title: string; icon: ComponentType<{ className?: string }>; children: React.ReactNode; danger?: boolean }
+function Card({ title, icon: Icon, children, danger }: CardProps) {
+  return (
+    <div className={`bg-surface border rounded p-6 ${danger ? 'border-danger/30' : 'border-border'}`}>
+      <div className="flex items-center gap-2 mb-5">
+        <Icon className={`w-5 h-5 ${danger ? 'text-danger' : 'text-accent'}`} />
+        <h2 className={`text-lg font-semibold ${danger ? 'text-danger' : 'text-text-primary'}`}>{title}</h2>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+interface InputProps { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; icon?: ComponentType<{ className?: string }> }
+function Input({ label, value, onChange, type = 'text', placeholder, icon: Icon }: InputProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-text-secondary mb-1.5">{label}</label>
+      <div className="relative">
+        {Icon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"><Icon className="w-4 h-4" /></div>}
+        <input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          className={`w-full px-3 py-2 bg-background border border-border rounded text-text-primary text-sm focus:border-accent transition-colors ${Icon ? 'pl-10' : ''}`} />
+      </div>
+    </div>
+  )
+}
+
+interface PassInputProps { label: string; value: string; onChange: (value: string) => void; show: boolean; setShow: (show: boolean) => void; placeholder?: string }
+function PassInput({ label, value, onChange, show, setShow, placeholder }: PassInputProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-text-secondary mb-1.5">{label}</label>
+      <div className="relative">
+        <input type={show ? 'text' : 'password'} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          className="w-full px-3 py-2 pr-10 bg-background border border-border rounded text-text-primary text-sm focus:border-accent transition-colors" />
+        <button type="button" onClick={() => setShow(!show)} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary">
+          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -245,40 +288,6 @@ export default function SettingsPage() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
   if (!settings) return <div className="text-sm text-danger">Failed to load settings.</div>
-
-  const Card = ({ title, icon: Icon, children, danger }: any) => (
-    <div className={`bg-surface border rounded p-6 ${danger ? 'border-danger/30' : 'border-border'}`}>
-      <div className="flex items-center gap-2 mb-5">
-        <Icon className={`w-5 h-5 ${danger ? 'text-danger' : 'text-accent'}`} />
-        <h2 className={`text-lg font-semibold ${danger ? 'text-danger' : 'text-text-primary'}`}>{title}</h2>
-      </div>
-      {children}
-    </div>
-  )
-
-  const Input = ({ label, value, onChange, type = 'text', placeholder, icon: Icon }: any) => (
-    <div>
-      <label className="block text-sm font-medium text-text-secondary mb-1.5">{label}</label>
-      <div className="relative">
-        {Icon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"><Icon className="w-4 h-4" /></div>}
-        <input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-          className={`w-full px-3 py-2 bg-background border border-border rounded text-text-primary text-sm focus:border-accent transition-colors ${Icon ? 'pl-10' : ''}`} />
-      </div>
-    </div>
-  )
-
-  const PassInput = ({ label, value, onChange, show, setShow, placeholder }: any) => (
-    <div>
-      <label className="block text-sm font-medium text-text-secondary mb-1.5">{label}</label>
-      <div className="relative">
-        <input type={show ? 'text' : 'password'} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-          className="w-full px-3 py-2 pr-10 bg-background border border-border rounded text-text-primary text-sm focus:border-accent transition-colors" />
-        <button type="button" onClick={() => setShow(!show)} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary">
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-    </div>
-  )
 
   return (
     <div className="max-w-3xl space-y-6 relative">
