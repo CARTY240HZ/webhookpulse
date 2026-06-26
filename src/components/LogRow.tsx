@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import type { WebhookLog } from '../types'
 import PayloadViewer from './PayloadViewer'
@@ -15,17 +15,18 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
   const [expanded, setExpanded] = useState(false)
   const timestamp = new Date(log.created_at).toLocaleString()
 
-  const isRoblox = log.payload?.source === 'roblox'
-  const player = log.payload?.player as Record<string, unknown> | undefined
-  // Flat-payload fallback: old logs sent username/userid at root level, v2 nests them under player.*
-  const username = player?.username ?? log.payload?.username
-  const userid = player?.userid ?? log.payload?.userid
-  const previewText = isRoblox
-    ? `Roblox: ${String(username || '-')} (UID: ${String(userid || '-')})`
-    : JSON.stringify(log.payload).substring(0, 80)
-  const previewTruncated = isRoblox
-    ? false
-    : JSON.stringify(log.payload).length > 80
+  const { isRoblox, previewText, previewTruncated } = useMemo(() => {
+    const isRoblox = log.payload?.source === 'roblox'
+    const player = log.payload?.player as Record<string, unknown> | undefined
+    const username = player?.username ?? log.payload?.username
+    const userid = player?.userid ?? log.payload?.userid
+    const payloadString = JSON.stringify(log.payload)
+    const previewText = isRoblox
+      ? `Roblox: ${String(username || '-')} (UID: ${String(userid || '-')})`
+      : payloadString.substring(0, 80)
+    const previewTruncated = isRoblox ? false : payloadString.length > 80
+    return { isRoblox, previewText, previewTruncated }
+  }, [log.payload])
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -42,10 +43,13 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
           checked={selected || false}
           onChange={(e) => onSelect?.(log.id, e.target.checked)}
           className="w-4 h-4 rounded border-border bg-background text-accent focus:ring-accent shrink-0"
+          aria-label="Select log"
         />
         <button
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-3 flex-1 text-left"
+          aria-expanded={expanded}
+          aria-label="Toggle log details"
         >
           {expanded ? (
             <ChevronUp className="w-4 h-4 text-text-secondary shrink-0" />
@@ -64,6 +68,7 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
             onClick={() => onDelete(log.id)}
             className="shrink-0 text-text-secondary hover:text-danger transition-colors"
             title="Delete log"
+            aria-label="Delete log"
           >
             <Trash2 className="w-4 h-4" />
           </button>
