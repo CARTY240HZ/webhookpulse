@@ -14,8 +14,9 @@ export function useHealthChecks(webhookId: string | undefined) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const cacheRef = useRef<Record<string, HealthCheck[]>>({})
+  const hasFetchedRef = useRef(false)
 
-  const fetchHealthChecks = useCallback(async () => {
+  const fetchHealthChecks = useCallback(async (signal?: AbortSignal) => {
     if (!webhookId) {
       setChecks([])
       setLoading(false)
@@ -41,6 +42,7 @@ export function useHealthChecks(webhookId: string | undefined) {
     try {
       const res = await fetch(`${API_BASE}/api/health-check?webhookId=${encodeURIComponent(webhookId)}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
+        signal,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -50,13 +52,22 @@ export function useHealthChecks(webhookId: string | undefined) {
       cacheRef.current[webhookId] = fetched
       setChecks(fetched)
     } catch (err) {
+      if ((err as Error).name === 'AbortError') return
       setError((err as Error).message)
     }
     setLoading(false)
   }, [webhookId])
 
   useEffect(() => {
-    fetchHealthChecks()
+    if (hasFetchedRef.current) return
+    hasFetchedRef.current = true
+
+    const abortController = new AbortController()
+    fetchHealthChecks(abortController.signal)
+
+    return () => {
+      abortController.abort()
+    }
   }, [fetchHealthChecks])
 
   // Auto-refresh every 60 seconds

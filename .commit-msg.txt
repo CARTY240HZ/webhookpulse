@@ -1,5 +1,6 @@
-fix(2): useRealtimeLogs filters dependency stabilization
+fix(3): useHealthChecks double-fetch prevention
 
-- Changed useEffect dependency from raw `filters` object to
-  `JSON.stringify(filters)` to prevent unnecessary re-subscriptions
-  when the reference changes but the filter values remain the same.
+- Added AbortController to cancel in-flight fetches on unmount.
+- Added hasFetchedRef to prevent duplicate fetches during React
+  Strict Mode double-mount.
+- Gracefully ignores AbortError in catch block.
