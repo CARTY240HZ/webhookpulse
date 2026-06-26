@@ -13,6 +13,6 @@ export async function checkRateLimit(supabase: SupabaseClient, ip: string): Prom
     .eq('ip_address', ip)
     .gte('created_at', windowStart)
 
-  if (error) return true // fail open on DB error
+  if (error) return false // fail closed on DB error
   return (count || 0) < RATE_LIMIT_MAX
 }
