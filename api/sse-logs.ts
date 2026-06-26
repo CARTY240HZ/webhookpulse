@@ -24,9 +24,11 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Missing webhookId' })
   }
 
-  // Validate JWT
+  // Validate JWT from header or query param (EventSource cannot send headers)
   const authHeader = req.headers.authorization || ''
-  const token = authHeader.replace('Bearer ', '')
+  const tokenFromHeader = authHeader.replace('Bearer ', '')
+  const tokenFromQuery = req.query.token as string | undefined
+  const token = tokenFromQuery || tokenFromHeader
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
@@ -54,7 +56,7 @@ export default async function handler(req: any, res: any) {
 
   // Set SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache, no-transform')
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no') // Disable nginx buffering
   res.flushHeaders()

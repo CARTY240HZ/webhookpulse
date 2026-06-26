@@ -42,6 +42,12 @@ export function useSse(url: string, callbacks: SseCallbacks = {}) {
       setConnected(true)
       reconnectAttemptsRef.current = 0
       onConnectRef.current?.()
+      // Clear token from URL to prevent it appearing in browser history
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('token')
+        window.history.replaceState({}, '', url.toString())
+      }
     }
 
     es.addEventListener('log', (e: MessageEvent) => {
