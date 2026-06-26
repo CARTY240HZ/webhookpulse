@@ -134,7 +134,8 @@ export default async function handler(req: any, res: any) {
 
     // ─── LIST LOGS ───
     // Parse query parameters for filtering
-    const q = typeof req.query?.q === 'string' ? req.query.q : undefined
+    const MAX_QUERY_LENGTH = 200
+    const q = typeof req.query?.q === 'string' ? req.query.q.slice(0, MAX_QUERY_LENGTH) : undefined
     const ip = typeof req.query?.ip === 'string' ? req.query.ip : undefined
     const from = typeof req.query?.from === 'string' ? req.query.from : undefined
     const to = typeof req.query?.to === 'string' ? req.query.to : undefined
