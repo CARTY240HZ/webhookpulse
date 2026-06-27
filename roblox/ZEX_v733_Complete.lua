@@ -896,10 +896,14 @@ reg("unview","Reset camera","Utility",PERM.MOD,function(_)
     local h=getHumanoid(); if h then Workspace.CurrentCamera.CameraSubject=h; notify("Camera reset") end
 end)
 
-reg("nameresp","Name respawn","Utility",PERM.USER,function(_)
-    local dn=localPlayer.DisplayName
-    localPlayer.DisplayName=" "; task.wait(0.1); localPlayer.DisplayName=dn
-    notify("Name respawned")
+-- FIX [H3]: removed nameresp — Player.DisplayName is read-only on the client, it always threw.
+-- Replaced with a working utility: copy current position to clipboard.
+reg("copypos","Copy position to clipboard","Utility",PERM.USER,function(_)
+    local root=getRootPart(); if not root then notify("No HRP","warn"); return end
+    local p=root.Position; local s=string.format("%.2f, %.2f, %.2f",p.X,p.Y,p.Z)
+    if Executor.setclipboard then
+        pcall(function()(Executor.setclipboard::(string)->boolean)(s)end); notify("Copied: "..s,"success")
+    else notify("Pos: "..s) end
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -945,7 +949,7 @@ local function createParticles(parent:Frame,maid:Maid,count:number)
         local p=Instance.new("Frame")
         p.Size=UDim2.new(0,math.random(3,5),0,math.random(3,5))
         p.Position=UDim2.new(math.random(),0,math.random(),0)
-        p.BackgroundColor3=Z.lime; p.BackgroundTransparency=0.8; p.BorderSizePixel=0; p.ZIndex=2; p.Parent=parent
+        p.BackgroundColor3=Z.lime; p.BackgroundTransparency=0.86; p.BorderSizePixel=0; p.ZIndex=13; p.Parent=parent
         local c=Instance.new("UICorner"); c.CornerRadius=UDim.new(1,0); c.Parent=p
         table.insert(particles,{frame=p,sx=(math.random()-0.5)*0.0005,sy=(math.random()-0.5)*0.0005,phase=math.random()*6.28})
     end
@@ -958,7 +962,7 @@ local function createParticles(parent:Frame,maid:Maid,count:number)
             if nx>1 then nx=0 elseif nx<0 then nx=1 end
             if ny>1 then ny=0 elseif ny<0 then ny=1 end
             p.frame.Position=UDim2.new(nx,0,ny,0)
-            p.frame.BackgroundTransparency=0.6+0.25*math.sin(t*1.5+p.phase)
+            p.frame.BackgroundTransparency=0.82+0.12*math.sin(t*1.5+p.phase) -- FIX [M1]: faint ambient over panels
         end
     end))
 end
@@ -1034,7 +1038,7 @@ mainContainer=frame({
 })
 corner(12).Parent=mainContainer; stroke(Z.border,1).Parent=mainContainer
 local glowBorder=stroke(Z.lime,0); glowBorder.Transparency=0.9; glowBorder.Parent=mainContainer
-createParticles(frame({Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,ZIndex=11,Parent=mainContainer}),rootMaid,14)
+createParticles(frame({Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,ZIndex=13,Parent=mainContainer}),rootMaid,14)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 17. TITLE BAR
@@ -1147,7 +1151,7 @@ local function buildDashboard(_:Frame,maid:Maid): Frame
     local infoL=label({Text="",Font=FONT_LABEL,TextSize=10,TextColor3=Z.text2,Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,6,0,4),BackgroundTransparency=1,TextWrapped=true,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,Parent=infoBox})
     local function refreshInfo()
         if not localPlayer then return end
-        local lines:{}={{
+        local lines: { {string} }={{
             "User: "..localPlayer.Name.." ("..localPlayer.DisplayName..")",
             "UserId: "..tostring(localPlayer.UserId),
             "Age: "..tostring(localPlayer.AccountAge).." days · "..tostring(localPlayer.MembershipType),
@@ -1173,7 +1177,7 @@ local function buildCommands(_:Frame,maid:Maid): Frame
     local listL=Instance.new("UIListLayout"); listL.SortOrder=Enum.SortOrder.LayoutOrder; listL.Padding=UDim.new(0,4); listL.Parent=scroll
     local lo=0
     for _,cat in ipairs(cats) do
-        local cmds:{}={}
+        local cmds: {CommandDef}={}
         for _,cmd in pairs(CommandRegistry) do if cmd.category==cat then table.insert(cmds,cmd) end end
         if #cmds==0 then continue end
         table.sort(cmds,function(a,b) return a.name<b.name end)
@@ -1213,7 +1217,7 @@ local function buildPlayer(_:Frame,maid:Maid): Frame
     local infoL=label({Text="Loading...",Font=FONT_LABEL,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,0,0,140),BackgroundTransparency=1,TextWrapped=true,Parent=f})
     local function refresh()
         if not localPlayer then return end
-        local lines:{}={"User: "..localPlayer.Name.." (@"..localPlayer.DisplayName..")","UserId: "..tostring(localPlayer.UserId),"Age: "..tostring(localPlayer.AccountAge).." days","Membership: "..tostring(localPlayer.MembershipType)}
+        local lines: {string}={"User: "..localPlayer.Name.." (@"..localPlayer.DisplayName..")","UserId: "..tostring(localPlayer.UserId),"Age: "..tostring(localPlayer.AccountAge).." days","Membership: "..tostring(localPlayer.MembershipType)}
         local char=localPlayer.Character; if char then local h=char:FindFirstChildOfClass("Humanoid"); if h then
             table.insert(lines,string.format("HP: %.1f / %.0f  WS: %.0f  JP: %.0f",h.Health,h.MaxHealth,h.WalkSpeed,h.JumpPower))
             if h.RootPart then local p=h.RootPart.Position; table.insert(lines,string.format("Pos: %.0f, %.0f, %.0f",p.X,p.Y,p.Z)) end
@@ -1238,7 +1242,7 @@ end
 -- SERVER TAB
 local function buildServer(_:Frame,maid:Maid): Frame
     local f=frame({Name="Server",BackgroundTransparency=1,Size=UDim2.new(1,0,1,0)})
-    local info:{}={"Game: "..game.Name,"PlaceId: "..tostring(game.PlaceId),"JobId: "..tostring(game.JobId),"Players: "..tostring(#Players:GetPlayers()).." / "..tostring(Players.MaxPlayers),"Lighting: "..tostring(Lighting.TimeOfDay),"Gravity: "..tostring(Workspace.Gravity)}
+    local info: {string}={"Game: "..game.Name,"PlaceId: "..tostring(game.PlaceId),"JobId: "..tostring(game.JobId),"Players: "..tostring(#Players:GetPlayers()).." / "..tostring(Players.MaxPlayers),"Lighting: "..tostring(Lighting.TimeOfDay),"Gravity: "..tostring(Workspace.Gravity)}
     label({Text=table.concat(info,"\n"),Font=FONT_LABEL,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,0,0,140),BackgroundTransparency=1,TextWrapped=true,Parent=f})
     local function srvBtn(text:string,y:number,color:Color3,action:()->())
         local btn=button({Text=text,Font=FONT_BUTTON,TextSize=11,TextColor3=Z.bg,Size=UDim2.new(0,140,0,28),Position=UDim2.new(0,0,0,y),BackgroundColor3=color,BorderSizePixel=0,AutoButtonColor=false,Parent=f}); corner(6).Parent=btn
@@ -1360,8 +1364,8 @@ local function executeInput()
     local raw=inputBox.Text:match("^%s*(.-)%s*$"); if not raw or #raw==0 then return end
     local text=raw; if text:sub(1,#CMD_PREFIX)==CMD_PREFIX then text=text:sub(#CMD_PREFIX+1) end
     text=text:match("^%s*(.-)%s*$"); if #text==0 then return end
-    local parts:{}={}; for tok in text:gmatch("%S+") do table.insert(parts,tok) end; if #parts==0 then return end
-    local cmdName=parts[1]:lower(); local args:{}={}
+    local parts: {string}={}; for tok in text:gmatch("%S+") do table.insert(parts,tok) end; if #parts==0 then return end
+    local cmdName=parts[1]:lower(); local args: {string}={}
     for i=2,#parts do table.insert(args,parts[i]) end
     local cmd=CommandRegistry[cmdName]
     if not cmd then notify("Unknown: "..cmdName,"warn"); return end
@@ -1376,8 +1380,9 @@ rootMaid:GiveTask(runBtn.MouseButton1Click:Connect(executeInput))
 -- 23. TOAST NOTIFICATIONS
 -- ═══════════════════════════════════════════════════════════════════════════════
 
-local toastStack=frame({Name="Toasts",Size=UDim2.new(0,230,0,0),Position=UDim2.new(1,-238,1,-44),BackgroundTransparency=1,ClipsDescendants=false,ZIndex=20,Parent=mainContainer})
-local toastList=Instance.new("UIListLayout"); toastList.SortOrder=Enum.SortOrder.LayoutOrder; toastList.VerticalAlignment=Enum.VerticalAlignment.Bottom; toastList.Padding=UDim.new(0,3); toastList.Parent=toastStack
+-- FIX [H1]: anchor bottom + real height region; old 0-height frame clipped all but 1 toast
+local toastStack=frame({Name="Toasts",AnchorPoint=Vector2.new(0,1),Size=UDim2.new(0,230,0,320),Position=UDim2.new(1,-238,1,-44),BackgroundTransparency=1,ClipsDescendants=false,ZIndex=20,Parent=mainContainer})
+local toastList=Instance.new("UIListLayout"); toastList.SortOrder=Enum.SortOrder.LayoutOrder; toastList.VerticalAlignment=Enum.VerticalAlignment.Bottom; toastList.HorizontalAlignment=Enum.HorizontalAlignment.Right; toastList.Padding=UDim.new(0,3); toastList.Parent=toastStack
 local toastSeq=0
 local toastColors:{[string]:Color3}={info=Z.info,warn=Z.warn,success=Z.success,danger=Z.danger}
 
@@ -1420,13 +1425,21 @@ end))
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 local guiVisible=true
+local lastVisiblePos: UDim2 = UDim2.new(0.5,-450,0.5,-280)
 rootMaid:GiveTask(UserInputService.InputBegan:Connect(function(input:InputObject,gp:boolean)
     if gp then return end
     if input.KeyCode==Enum.KeyCode.RightShift then
-        guiVisible=not guiVisible
-        local pos=mainContainer.AbsolutePosition
-        if guiVisible then tweenSafe(mainContainer,{Position=UDim2.new(0,pos.X,0,pos.Y)},TWEEN_SMOOTH,rootMaid)
-        else               tweenSafe(mainContainer,{Position=UDim2.new(0,pos.X,1.5,0)},TWEEN_SMOOTH,rootMaid) end
+        if guiVisible then
+            -- hide: remember on-screen position, slide off bottom
+            guiVisible=false
+            lastVisiblePos=mainContainer.Position
+            local p=mainContainer.AbsolutePosition
+            tweenSafe(mainContainer,{Position=UDim2.new(0,p.X,1.5,0)},TWEEN_SMOOTH,rootMaid)
+        else
+            -- FIX [C1]: restore SAVED position; old code read hidden AbsolutePosition → stayed off-screen
+            guiVisible=true
+            tweenSafe(mainContainer,{Position=lastVisiblePos},TWEEN_SMOOTH,rootMaid)
+        end
     end
 end))
 
