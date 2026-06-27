@@ -7,8 +7,9 @@ import crypto from 'crypto'
 import { hashSecret } from './_lib/hmac.js'
 
 export default async function handler(req: any, res: any) {
+  setCorsHeaders(res, 'private')
+
   if (req.method === 'OPTIONS') {
-    setCorsHeaders(res, 'private')
     return res.status(204).end()
   }
 
@@ -73,15 +74,20 @@ export default async function handler(req: any, res: any) {
         return apiError(res, 400, '2FA_NOT_CONFIGURED')
       }
 
-      // Check expiration
-      if (profile.two_factor_expires && new Date(profile.two_factor_expires) < new Date()) {
+      // Check expiration — <= so a code cannot be used at the exact expiry instant
+      if (profile.two_factor_expires && new Date(profile.two_factor_expires) <= new Date()) {
         return apiError(res, 400, 'CODE_EXPIRED')
       }
 
-      // Verify code with timing-safe comparison using hashed code
+      // Verify code with timing-safe comparison — both hashes are 64-char hex strings
       const storedCodeHash = profile.two_factor_code || ''
       const providedCodeHash = hashSecret(code)
-      if (storedCodeHash.length !== providedCodeHash.length || !crypto.timingSafeEqual(Buffer.from(storedCodeHash), Buffer.from(providedCodeHash))) {
+      const expectedHashLength = 64
+      if (
+        storedCodeHash.length !== expectedHashLength ||
+        providedCodeHash.length !== expectedHashLength ||
+        !crypto.timingSafeEqual(Buffer.from(storedCodeHash, 'hex'), Buffer.from(providedCodeHash, 'hex'))
+      ) {
         return apiError(res, 400, 'INVALID_CODE')
       }
 

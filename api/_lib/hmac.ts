@@ -1,13 +1,13 @@
 import crypto from 'crypto'
 
-const SALT = process.env.WEBHOOK_SECRET_SALT
-
-if (!SALT) {
-  throw new Error('WEBHOOK_SECRET_SALT environment variable is required. Set a strong random secret (e.g. openssl rand -hex 32).')
+function getSalt(): string {
+  const salt = process.env.WEBHOOK_SECRET_SALT
+  if (!salt) throw new Error('WEBHOOK_SECRET_SALT environment variable is required.')
+  return salt
 }
 
 export function hashSecret(secret: string): string {
-  return crypto.createHmac('sha256', SALT).update(secret).digest('hex')
+  return crypto.createHmac('sha256', getSalt()).update(secret).digest('hex')
 }
 
 export function verifySecret(provided: string, storedHash: string): boolean {
