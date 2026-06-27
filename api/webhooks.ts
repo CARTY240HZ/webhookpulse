@@ -5,6 +5,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { validateWebhookInput, clampString, isValidUUID } from './_lib/validate.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
+import { hashSecret } from './_lib/hmac.js'
 
 function generateSlug(name: string): string {
   const base = name
@@ -118,6 +119,7 @@ export default async function handler(req: any, res: any) {
           description: description || null,
           url_path: urlPath,
           secret: secret,
+          secret_hash: secret ? hashSecret(secret) : null,
         })
         .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
         .single()

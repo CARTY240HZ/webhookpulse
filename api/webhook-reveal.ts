@@ -7,8 +7,10 @@ import { isValidUUID } from './_lib/validate.js'
 import { checkRateLimit } from './_lib/ratelimit.js'
 
 export default async function handler(req: any, res: any) {
+  // CORS must be set before any early return so browser XHR sees the headers
+  setCorsHeaders(res, 'private')
+
   if (req.method === 'OPTIONS') {
-    setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
   }
 
@@ -35,9 +37,10 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 400, 'PASSWORD_REQUIRED')
     }
 
-    // Rate limit by IP (fail-closed)
-    const clientIp = req.headers['x-vercel-forwarded-for'] || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || ''
-    const allowed = await checkRateLimit(supabase, String(clientIp))
+    // Rate limit by IP — split comma-separated forwarded-for chains (same as webhook-receive.ts)
+    const rawIp = req.headers['x-vercel-forwarded-for'] || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || ''
+    const clientIp = rawIp ? String(rawIp).split(',')[0].trim() : ''
+    const allowed = await checkRateLimit(supabase, clientIp)
     if (!allowed) return apiError(res, 429, 'RATE_LIMITED')
 
     // Verify password by attempting to sign in
@@ -47,25 +50,22 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 401, 'USER_EMAIL_NOT_FOUND')
     }
 
-    // Artificial delay to mitigate timing attacks
-    await new Promise(r => setTimeout(r, 100 + Math.random() * 400))
-
     // Verify password without creating a session (using signIn + immediate signOut)
     const { createClient } = await import('@supabase/supabase-js')
     const supabaseUrl = process.env.SUPABASE_URL || ''
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
-    
+
     const authClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    const { error: signInError } = await authClient.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    // Immediately sign out to prevent session accumulation
+    // Delay wraps the auth call so it pads total response time to a constant floor,
+    // preventing the observer from isolating the signInWithPassword timing.
+    const authStart = Date.now()
+    const { error: signInError } = await authClient.auth.signInWithPassword({ email, password })
     await authClient.auth.signOut({ scope: 'local' })
+    const authElapsed = Date.now() - authStart
+    await new Promise(r => setTimeout(r, Math.max(0, 500 - authElapsed)))
 
     if (signInError) {
       return apiError(res, 401, 'INVALID_PASSWORD')
