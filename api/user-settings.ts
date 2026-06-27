@@ -5,6 +5,7 @@ import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { createClient } from '@supabase/supabase-js'
 import { setSecurityHeaders, checkBruteLimit } from './_lib/security.js'
+import { logAuditFromRequest } from './_lib/audit.js'
 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
@@ -122,7 +123,7 @@ export default async function handler(req: any, res: any) {
           captureException(error)
           return apiError(res, 500, 'PROFILE_UPDATE_FAILED')
         }
-        return res.status(200).json({ success: true })
+        return setPrivateCache(res).status(200).json({ success: true })
       }
 
       if (action === 'change_email') {

@@ -7,6 +7,7 @@ import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { hashSecret } from './_lib/hmac.js'
 import { setSecurityHeaders } from './_lib/security.js'
+import { logAuditFromRequest } from './_lib/audit.js'
 
 function generateSlug(name: string): string {
   const base = name
@@ -76,7 +77,7 @@ export default async function handler(req: any, res: any) {
         }
       })
 
-      return res.status(200).json({ webhooks: enriched })
+      return setPrivateCache(res).status(200).json({ webhooks: enriched })
     }
 
     if (req.method === 'POST') {

@@ -15,8 +15,10 @@ function escapeCsvCell(value: string): string {
   if (dangerous.test(value)) {
     sanitized = "'" + value
   }
+  // Strip line breaks to prevent row injection (formula payloads with \r\n)
+  sanitized = sanitized.replace(/[\r\n]/g, ' ')
   // Escape quotes and wrap if contains special chars
-  if (sanitized.includes('"') || sanitized.includes(',') || sanitized.includes('\n') || sanitized.includes('\r')) {
+  if (sanitized.includes('"') || sanitized.includes(',')) {
     return '"' + sanitized.replace(/"/g, '""') + '"'
   }
   return sanitized

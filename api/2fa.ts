@@ -6,6 +6,7 @@ import { captureException } from './_lib/sentry.js'
 import crypto from 'crypto'
 import { hashSecret } from './_lib/hmac.js'
 import { setSecurityHeaders, checkBruteLimit, resetBruteLimit } from './_lib/security.js'
+import { logAuditFromRequest } from './_lib/audit.js'
 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
@@ -59,7 +60,7 @@ export default async function handler(req: any, res: any) {
         })
       }
 
-      return res.status(200).json({
+      return setPrivateCache(res).status(200).json({
         success: true,
         message: 'Verification code sent',
       })
@@ -124,7 +125,8 @@ export default async function handler(req: any, res: any) {
         return apiError(res, 500, 'VERIFICATION_UPDATE_FAILED')
       }
 
-      return res.status(200).json({
+      await logAuditFromRequest(req, user.id, '2FA_ENABLED')
+        return setPrivateCache(res).status(200).json({
         success: true,
         message: 'Phone verified. Two-factor authentication is now active.',
       })
