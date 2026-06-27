@@ -1414,7 +1414,6 @@ rootMaid:GiveTask(screenGui.Destroying:Connect(function() rootMaid:Destroy(); lo
 
 switchTab("Dashboard")
 
-log("INFO", "ZEX v7.3.3 booted — Commands: " .. tostring(function()
-    local cc = 0; for _ in pairs(CommandRegistry) do cc += 1 end
-
-log("INFO", "ZEX v7.3.3 booted — Commands: " .. tostring(cc) .. " — Rank: " .. ({[1]="USER", [2]="MOD", [3]="ADMIN", [4]="OWNER"})[userRank])
+local _cmdCount = 0
+for _ in pairs(CommandRegistry) do _cmdCount += 1 end
+log("INFO", "ZEX v7.3.3 booted — Commands: " .. tostring(_cmdCount) .. " — Rank: " .. ({[1]="USER", [2]="MOD", [3]="ADMIN", [4]="OWNER"})[userRank])
