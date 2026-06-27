@@ -410,7 +410,8 @@ local function saveConfig()
     pcall(function()
         if FS.isfolder and FS.makefolder and not (FS.isfolder :: any)(CONFIG_DIR) then (FS.makefolder :: any)(CONFIG_DIR) end
         local json = HttpService:JSONEncode(Flags)
-        (FS.write :: any)(CONFIG_PATH, json)
+        local writeFn = FS.write :: any
+        writeFn(CONFIG_PATH, json)
     end)
 end
 
