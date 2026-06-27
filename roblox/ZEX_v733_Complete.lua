@@ -1,5 +1,23 @@
 --[[
-  ZEX v7.4.0 ELITE — AAA EXECUTOR GUI · COMPONENT LIBRARY · 40+ COMMANDS
+  ZEX v8.0 PRIME — AAA EXECUTOR SUITE · 11 TABS · 45+ COMMANDS · PERSISTENT
+  ─────────────────────────────────────────────────────────────────────────────
+  v8.0 PRIME — system-tier upgrade (merges the v7.0 intelligence/webhook core
+  with the v7.4.1 component GUI, plus four elite subsystems):
+    · NEW  Config persistence — writefile/readfile flag store (ZEX/config.json),
+           debounced autosave; every toggle/slider/keybind survives re-execution.
+    · NEW  Drawing-API ESP — box + name + healthbar + distance + tracer, team and
+           max-distance filters; graceful Highlight fallback when no Drawing API.
+    · NEW  Aimbot PRO — FOV circle, screen-space target, visibility raycast,
+           smoothing, team filter, hold-RMB, selectable target part.
+    · NEW  Watermark (FPS·ping·players·clock, draggable) + floating keybind list
+           + mobile FAB toggle (touch) + protect_gui anti-detection.
+    · MERGE Intel tab (full identity/character/server/device dump), Webhooks tab
+           (WebhookPulse transmitter, 4 payload modes), Network tab (raw HTTP).
+    · KEEP Command Palette (Ctrl+K), profile card, vector icons, spring motion.
+  ─────────────────────────────────────────────────────────────────────────────
+  v7.4.1 base audit (carried): executor detection genv→fenv→_G (was _G-only and
+  silently nil on Wave/KRNL/Synapse/Fluxus); dropdown outside-click dismiss;
+  keybind picker no longer double-fires the menu toggle, Esc cancels.
   ─────────────────────────────────────────────────────────────────────────────
   Director-grade rewrite of the presentation layer (Rayfield / Fluent tier):
     · Vector icons drawn from Frames — zero asset dependency, always render
@@ -94,9 +112,30 @@ local Executor: ExecutorApi = {
     hookmetamethod=nil, getrawmetatable=nil, getnamecallmethod=nil,
 }
 
+-- Executor capability functions (gethui, setclipboard, request, …) live in the
+-- executor's SHARED global env (getgenv()) or in the running script's function
+-- environment — they are frequently ABSENT from the game's _G table. Probing
+-- only _G silently disabled every executor feature on most executors (clipboard,
+-- gethui parenting, HTTP). Resolve in priority order: genv → fenv → _G.
+local _genv: any = nil; pcall(function() _genv = (getgenv :: any)() end)
+local _fenv: any = nil; pcall(function() _fenv = (getfenv :: any)() end)
+
+local function resolveGlobal(key: string): any
+    local v: any = nil
+    if type(_genv) == "table" then local ok, r = pcall(function() return (_genv :: any)[key] end); if ok and r ~= nil then v = r end end
+    if v == nil and type(_fenv) == "table" then local ok, r = pcall(function() return (_fenv :: any)[key] end); if ok and r ~= nil then v = r end end
+    if v == nil then local ok, r = pcall(function() return (_G :: any)[key] end); if ok then v = r end end
+    return v
+end
+
 local function detectFn<T>(key: string): T?
-    local ok, v = pcall(function(): any return _G[key] end)
-    return if ok and type(v) == "function" then v :: T else nil
+    local v = resolveGlobal(key)
+    return if type(v) == "function" then v :: T else nil
+end
+
+local function detectTbl(key: string): {[string]:any}?
+    local v = resolveGlobal(key)
+    return if type(v) == "table" then v :: {[string]:any} else nil
 end
 
 Executor.getgenv           = detectFn("getgenv")
@@ -109,17 +148,49 @@ Executor.hookmetamethod    = detectFn("hookmetamethod")
 Executor.getrawmetatable   = detectFn("getrawmetatable")
 Executor.getnamecallmethod = detectFn("getnamecallmethod")
 
-pcall(function()
-    local syn    = _G["syn"]          :: any
-    local req    = _G["request"]      :: any
-    local httpR  = _G["http_request"] :: any
-    local fluxus = _G["fluxus"]       :: any
-    if   type(syn)    == "table"  and type(syn.request)    == "function" then Executor.request = syn.request
-    elseif type(req)  == "function"                                       then Executor.request = req
-    elseif type(httpR)== "function"                                       then Executor.request = httpR
-    elseif type(fluxus)== "table" and type(fluxus.request) == "function" then Executor.request = fluxus.request
+-- HTTP request: bare `request`/`http_request`, else syn.request / fluxus.request
+Executor.request = detectFn("request") or detectFn("http_request")
+if not Executor.request then
+    local syn = detectTbl("syn")
+    if syn and type(syn.request) == "function" then Executor.request = syn.request :: any end
+end
+if not Executor.request then
+    local fluxus = detectTbl("fluxus")
+    if fluxus and type(fluxus.request) == "function" then Executor.request = fluxus.request :: any end
+end
+if not Executor.request then
+    local delta = detectTbl("delta")
+    if delta and type(delta.request) == "function" then Executor.request = delta.request :: any end
+end
+
+-- Filesystem (config persistence) — optional, executor-provided
+local FS = {
+    write      = detectFn("writefile")  :: ((path:string,data:string)->())?,
+    read       = detectFn("readfile")   :: ((path:string)->string)?,
+    isfile     = detectFn("isfile")     :: ((path:string)->boolean)?,
+    isfolder   = detectFn("isfolder")   :: ((path:string)->boolean)?,
+    makefolder = detectFn("makefolder") :: ((path:string)->())?,
+}
+local hasFS = FS.write ~= nil and FS.read ~= nil
+
+-- Drawing API (high-perf ESP) — optional, executor-provided
+local DrawingNew: ((kind:string)->any)? = nil
+do
+    local d = resolveGlobal("Drawing")
+    if type(d) == "table" or type(d) == "userdata" then
+        local ok, fn = pcall(function() return (d :: any).new end)
+        if ok and type(fn) == "function" then DrawingNew = function(kind) return (d :: any).new(kind) end end
     end
-end)
+end
+local hasDrawing = DrawingNew ~= nil
+
+-- GUI protection (anti-detection) — hides the ScreenGui from game scripts
+local protectGui = detectFn("protect_gui") or detectFn("protectgui")
+local function applyGuiProtection(gui: Instance)
+    if protectGui then pcall(function() (protectGui :: any)(gui) end) end
+    local syn = detectTbl("syn")
+    if syn and type(syn.protect_gui) == "function" then pcall(function() syn.protect_gui(gui) end) end
+end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 3. TYPES
@@ -193,6 +264,7 @@ local F_CODE = Enum.Font.Code
 
 local LOG_MAX    = 300
 local CMD_PREFIX = ";"
+local capturingKeybind = false   -- true while a Keybind picker awaits a key (suppresses menu toggle)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 6. LOGGING + CAPTURE
@@ -212,6 +284,13 @@ local function safeCall<T>(fn: ()->T, ctx: string): (boolean, T?)
     return xpcall(fn, function(err)
         log("ERROR", ctx .. ": " .. tostring(err) .. "\n" .. debug.traceback())
     end)
+end
+
+-- value-returning guarded call: returns fn() on success, else fallback (no logging)
+local function tryGet<T>(fn: ()->T, fallback: T): T
+    local ok, r = pcall(fn)
+    if ok and r ~= nil then return r :: T end
+    return fallback
 end
 
 pcall(function()
@@ -317,6 +396,54 @@ local PERM       = {USER=1,MOD=2,ADMIN=3,OWNER=4}
 local PERM_NAMES: {[number]:string} = {[1]="USER",[2]="MOD",[3]="ADMIN",[4]="OWNER"}
 local userRank   = PERM.OWNER
 local function canRun(p: number): boolean return userRank >= p end
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 8b. FLAGS + CONFIG PERSISTENCE — survives re-execution (writefile/readfile)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+local Flags: {[string]:any} = {}
+local CONFIG_DIR  = "ZEX"
+local CONFIG_PATH = "ZEX/config.json"
+
+local function saveConfig()
+    if not hasFS then return end
+    pcall(function()
+        if FS.isfolder and FS.makefolder and not (FS.isfolder :: any)(CONFIG_DIR) then (FS.makefolder :: any)(CONFIG_DIR) end
+        local json = HttpService:JSONEncode(Flags)
+        (FS.write :: any)(CONFIG_PATH, json)
+    end)
+end
+
+local saveQueued = false
+local function queueSave()  -- debounce: coalesce rapid writes (slider drag, etc.)
+    if saveQueued or not hasFS then return end
+    saveQueued = true
+    task.delay(0.6, function() saveQueued = false; saveConfig() end)
+end
+
+local function setFlag(key: string, value: any)
+    Flags[key] = value
+    queueSave()
+end
+local function getFlag(key: string, default: any): any
+    local v = Flags[key]
+    if v == nil then return default end
+    return v
+end
+
+local function loadConfig()
+    if not hasFS then return end
+    pcall(function()
+        if FS.isfile and not (FS.isfile :: any)(CONFIG_PATH) then return end
+        local raw = (FS.read :: any)(CONFIG_PATH)
+        if type(raw) ~= "string" or #raw == 0 then return end
+        local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
+        if ok and type(decoded) == "table" then
+            for k, v in pairs(decoded) do Flags[k] = v end
+        end
+    end)
+end
+loadConfig()
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 9. COMMAND STATE
@@ -572,54 +699,139 @@ reg("antifling","Toggle anti-fling","Player",PERM.USER,function(_)
 end)
 
 -- ── COMBAT ───────────────────────────────────────────────────────────────────
+-- Shared targeting helpers
+local function isTeammate(p: Player): boolean
+    return p.Team ~= nil and localPlayer.Team ~= nil and p.Team == localPlayer.Team and not p.Neutral
+end
+local function isVisible(targetPart: BasePart): boolean
+    local cam=Workspace.CurrentCamera; if not cam then return true end
+    local char=localPlayer.Character
+    local params=RaycastParams.new()
+    params.FilterType=Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances={char,cam}
+    local origin=cam.CFrame.Position
+    local dir=targetPart.Position-origin
+    local hit=Workspace:Raycast(origin,dir,params)
+    return hit==nil or hit.Instance:IsDescendantOf(targetPart.Parent)
+end
+
+-- Drawing-based ESP: box + name + healthbar + distance + tracer (high-perf)
+local function startDrawingESP(maid: Maid)
+    local cache: {[Player]:{[string]:any}} = {}
+    local function removeP(p: Player)
+        local d=cache[p]; if not d then return end
+        for _,o in pairs(d) do pcall(function() o.Visible=false; o:Remove() end) end
+        cache[p]=nil
+    end
+    maid:GiveTask(function() for p in pairs(cache) do removeP(p) end end)
+    maid:GiveTask(Players.PlayerRemoving:Connect(removeP))
+    local function ensure(p: Player)
+        if cache[p] then return cache[p] end
+        local d={box=(DrawingNew::any)("Square"),name=(DrawingNew::any)("Text"),dist=(DrawingNew::any)("Text"),
+                 hpBg=(DrawingNew::any)("Line"),hp=(DrawingNew::any)("Line"),tracer=(DrawingNew::any)("Line")}
+        d.box.Thickness=1; d.box.Filled=false; d.box.Color=Z.lime
+        d.name.Size=13; d.name.Center=true; d.name.Outline=true; d.name.Color=Color3.new(1,1,1)
+        d.dist.Size=12; d.dist.Center=true; d.dist.Outline=true; d.dist.Color=Color3.fromRGB(200,200,200)
+        d.hpBg.Thickness=3; d.hpBg.Color=Color3.new(0,0,0)
+        d.hp.Thickness=1;   d.hp.Color=Z.success
+        d.tracer.Thickness=1; d.tracer.Color=Z.lime
+        cache[p]=d; return d
+    end
+    maid:GiveTask(RunService.RenderStepped:Connect(function()
+        local cam=Workspace.CurrentCamera; if not cam then return end
+        local sBox,sName=getFlag("esp_box",true),getFlag("esp_name",true)
+        local sHp,sDist=getFlag("esp_health",true),getFlag("esp_distance",true)
+        local sTracer,sTeam=getFlag("esp_tracer",false),getFlag("esp_team",false)
+        local maxDist=tonumber(getFlag("esp_maxdist",0)) or 0
+        local mc=localPlayer.Character
+        local myHrp=mc and mc:FindFirstChild("HumanoidRootPart")
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p==localPlayer then continue end
+            local char=p.Character
+            local hrp=char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+            local hum=char and char:FindFirstChildOfClass("Humanoid") :: Humanoid?
+            local ok = char~=nil and hrp~=nil and hum~=nil and hum.Health>0 and (sTeam or not isTeammate(p))
+            local dist = (ok and myHrp) and (hrp.Position-myHrp.Position).Magnitude or 0
+            if ok and maxDist>0 and dist>maxDist then ok=false end
+            local d=cache[p]
+            if not ok then if d then for _,o in pairs(d) do o.Visible=false end end; continue end
+            d=ensure(p)
+            local rootPos,onScreen=cam:WorldToViewportPoint(hrp.Position)
+            if not onScreen then for _,o in pairs(d) do o.Visible=false end; continue end
+            local topV=cam:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0))
+            local botV=cam:WorldToViewportPoint(hrp.Position-Vector3.new(0,3.5,0))
+            local h=math.abs(topV.Y-botV.Y); local w=h*0.5
+            local x,y=rootPos.X-w/2, topV.Y
+            d.box.Visible=sBox; if sBox then d.box.Size=Vector2.new(w,h); d.box.Position=Vector2.new(x,y) end
+            d.name.Visible=sName; if sName then d.name.Text=p.Name; d.name.Position=Vector2.new(rootPos.X,y-16) end
+            d.dist.Visible=sDist; if sDist then d.dist.Text=tostring(math.floor(dist)).."m"; d.dist.Position=Vector2.new(rootPos.X,y+h+2) end
+            local frac=math.clamp(hum.Health/math.max(hum.MaxHealth,1),0,1)
+            local hbx=x-4
+            d.hpBg.Visible=sHp; d.hp.Visible=sHp
+            if sHp then
+                d.hpBg.From=Vector2.new(hbx,y); d.hpBg.To=Vector2.new(hbx,y+h)
+                d.hp.From=Vector2.new(hbx,y+h*(1-frac)); d.hp.To=Vector2.new(hbx,y+h)
+                d.hp.Color = if frac>0.5 then Z.success elseif frac>0.25 then Z.warn else Z.danger
+            end
+            d.tracer.Visible=sTracer
+            if sTracer then local vp=cam.ViewportSize; d.tracer.From=Vector2.new(vp.X/2,vp.Y); d.tracer.To=Vector2.new(rootPos.X,y+h) end
+        end
+    end))
+end
+
+-- Highlight fallback ESP (no Drawing API)
+local function startHighlightESP(em: Maid)
+    local function attachChar(p: Player, char: Model)
+        local pMaid=Maid.new(); em:GiveTask(function() pMaid:Destroy() end)
+        local head=char:FindFirstChild("Head")::BasePart?; if not head then return end
+        local hl=Instance.new("Highlight"); hl.Name="ZEX_ESP"
+        hl.FillColor=Z.danger; hl.OutlineColor=Z.lime
+        hl.FillTransparency=0.72; hl.OutlineTransparency=0.25; hl.Parent=char; pMaid:GiveTask(hl)
+        local bg=Instance.new("BillboardGui"); bg.Name="ZEX_ESP"; bg.AlwaysOnTop=true
+        bg.Size=UDim2.new(0,120,0,40); bg.StudsOffset=Vector3.new(0,2.8,0); bg.Parent=head; pMaid:GiveTask(bg)
+        local nameL=Instance.new("TextLabel"); nameL.Size=UDim2.new(1,0,0,16); nameL.BackgroundTransparency=1
+        nameL.TextColor3=Z.lime; nameL.Font=F_BODY; nameL.TextSize=12; nameL.Text=p.Name
+        nameL.TextStrokeTransparency=0.5; nameL.Parent=bg
+        local distL=Instance.new("TextLabel"); distL.Size=UDim2.new(1,0,0,14); distL.Position=UDim2.new(0,0,0,16)
+        distL.BackgroundTransparency=1; distL.TextColor3=Z.text2; distL.Font=F_THIN; distL.TextSize=10
+        distL.Text="? studs"; distL.TextStrokeTransparency=0.6; distL.Parent=bg
+        local hpBg=Instance.new("Frame"); hpBg.Size=UDim2.new(1,0,0,4); hpBg.Position=UDim2.new(0,0,0,32)
+        hpBg.BackgroundColor3=Z.elevated; hpBg.BorderSizePixel=0; hpBg.Parent=bg
+        local cc1=Instance.new("UICorner"); cc1.CornerRadius=UDim.new(0,2); cc1.Parent=hpBg
+        local hpFill=Instance.new("Frame"); hpFill.Size=UDim2.new(1,0,1,0); hpFill.BackgroundColor3=Z.success
+        hpFill.BorderSizePixel=0; hpFill.Parent=hpBg
+        local cc2=Instance.new("UICorner"); cc2.CornerRadius=UDim.new(0,2); cc2.Parent=hpFill
+        local hum=char:FindFirstChildOfClass("Humanoid")
+        local hrp=char:FindFirstChild("HumanoidRootPart")::BasePart?
+        pMaid:GiveTask(RunService.RenderStepped:Connect(function()
+            if not hum or not hum.Parent then return end
+            local hp=math.clamp(hum.Health/math.max(hum.MaxHealth,1),0,1)
+            hpFill.Size=UDim2.new(hp,0,1,0)
+            hpFill.BackgroundColor3=if hp>0.5 then Z.success elseif hp>0.25 then Z.warn else Z.danger
+            local mc=localPlayer.Character
+            if hrp and mc then
+                local myHrp=mc:FindFirstChild("HumanoidRootPart")::BasePart?
+                if myHrp then distL.Text=math.floor((hrp.Position-myHrp.Position).Magnitude).." studs" end
+            end
+        end))
+    end
+    local function addESP(p: Player)
+        if p==localPlayer then return end
+        if p.Character then attachChar(p,p.Character) end
+        em:GiveTask(p.CharacterAdded:Connect(function(char) task.wait(0.3); attachChar(p,char) end))
+    end
+    for _,p in ipairs(Players:GetPlayers()) do addESP(p) end
+    local conn=Players.PlayerAdded:Connect(addESP)
+    em:GiveTask(function() conn:Disconnect() end)
+end
+
 reg("esp","Toggle ESP","Combat",PERM.MOD,function(_)
     CMD_STATE.esp = not CMD_STATE.esp
     if CMD_STATE.esp then
         if espMaid then espMaid:Destroy() end
         local em = Maid.new(); espMaid = em
-        notify("ESP ON","success")
-        local function attachChar(p: Player, char: Model)
-            local pMaid=Maid.new(); em:GiveTask(function() pMaid:Destroy() end)
-            local head=char:FindFirstChild("Head")::BasePart?; if not head then return end
-            local hl=Instance.new("Highlight"); hl.Name="ZEX_ESP"
-            hl.FillColor=Z.danger; hl.OutlineColor=Z.lime
-            hl.FillTransparency=0.72; hl.OutlineTransparency=0.25; hl.Parent=char; pMaid:GiveTask(hl)
-            local bg=Instance.new("BillboardGui"); bg.Name="ZEX_ESP"; bg.AlwaysOnTop=true
-            bg.Size=UDim2.new(0,120,0,40); bg.StudsOffset=Vector3.new(0,2.8,0); bg.Parent=head; pMaid:GiveTask(bg)
-            local nameL=Instance.new("TextLabel"); nameL.Size=UDim2.new(1,0,0,16); nameL.BackgroundTransparency=1
-            nameL.TextColor3=Z.lime; nameL.Font=F_BODY; nameL.TextSize=12; nameL.Text=p.Name
-            nameL.TextStrokeTransparency=0.5; nameL.Parent=bg
-            local distL=Instance.new("TextLabel"); distL.Size=UDim2.new(1,0,0,14); distL.Position=UDim2.new(0,0,0,16)
-            distL.BackgroundTransparency=1; distL.TextColor3=Z.text2; distL.Font=F_THIN; distL.TextSize=10
-            distL.Text="? studs"; distL.TextStrokeTransparency=0.6; distL.Parent=bg
-            local hpBg=Instance.new("Frame"); hpBg.Size=UDim2.new(1,0,0,4); hpBg.Position=UDim2.new(0,0,0,32)
-            hpBg.BackgroundColor3=Z.elevated; hpBg.BorderSizePixel=0; hpBg.Parent=bg
-            local cc1=Instance.new("UICorner"); cc1.CornerRadius=UDim.new(0,2); cc1.Parent=hpBg
-            local hpFill=Instance.new("Frame"); hpFill.Size=UDim2.new(1,0,1,0); hpFill.BackgroundColor3=Z.success
-            hpFill.BorderSizePixel=0; hpFill.Parent=hpBg
-            local cc2=Instance.new("UICorner"); cc2.CornerRadius=UDim.new(0,2); cc2.Parent=hpFill
-            local hum=char:FindFirstChildOfClass("Humanoid")
-            local hrp=char:FindFirstChild("HumanoidRootPart")::BasePart?
-            pMaid:GiveTask(RunService.RenderStepped:Connect(function()
-                if not hum or not hum.Parent then return end
-                local hp=math.clamp(hum.Health/math.max(hum.MaxHealth,1),0,1)
-                hpFill.Size=UDim2.new(hp,0,1,0)
-                hpFill.BackgroundColor3=if hp>0.5 then Z.success elseif hp>0.25 then Z.warn else Z.danger
-                local mc=localPlayer.Character
-                if hrp and mc then
-                    local myHrp=mc:FindFirstChild("HumanoidRootPart")::BasePart?
-                    if myHrp then distL.Text=math.floor((hrp.Position-myHrp.Position).Magnitude).." studs" end
-                end
-            end))
-        end
-        local function addESP(p: Player)
-            if p==localPlayer then return end
-            if p.Character then attachChar(p,p.Character) end
-            em:GiveTask(p.CharacterAdded:Connect(function(char) task.wait(0.3); attachChar(p,char) end))
-        end
-        for _,p in ipairs(Players:GetPlayers()) do addESP(p) end
-        CMD_STATE.espConn = Players.PlayerAdded:Connect(addESP)
-        em:GiveTask(function() if CMD_STATE.espConn then CMD_STATE.espConn:Disconnect(); CMD_STATE.espConn=nil end end)
+        if hasDrawing then startDrawingESP(em) else startHighlightESP(em) end
+        notify(if hasDrawing then "ESP ON (Drawing)" else "ESP ON (Highlight)","success")
     else
         if espMaid then espMaid:Destroy(); espMaid=nil end
         notify("ESP OFF")
@@ -627,24 +839,53 @@ reg("esp","Toggle ESP","Combat",PERM.MOD,function(_)
 end)
 reg("unesp","Disable ESP","Combat",PERM.MOD,function(_) if CMD_STATE.esp then CommandRegistry["esp"].run({}) end end)
 
-reg("aimbot","Toggle aimbot","Combat",PERM.MOD,function(_)
+local aimFovCircle: any = nil
+local function getAimTarget(fovPx:number, needVisible:boolean, allowTeam:boolean, partName:string): BasePart?
+    local cam=Workspace.CurrentCamera; if not cam then return nil end
+    local center=cam.ViewportSize/2
+    local best=fovPx; local target:BasePart?=nil
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p==localPlayer then continue end
+        if not allowTeam and isTeammate(p) then continue end
+        local char=p.Character; if not char then continue end
+        local hum=char:FindFirstChildOfClass("Humanoid"); if not hum or hum.Health<=0 then continue end
+        local part=(char:FindFirstChild(partName) or char:FindFirstChild("HumanoidRootPart")) :: BasePart?
+        if not part then continue end
+        local sp,on=cam:WorldToViewportPoint(part.Position)
+        if not on then continue end
+        local d=(Vector2.new(sp.X,sp.Y)-center).Magnitude
+        if d<best then
+            if needVisible and not isVisible(part) then continue end
+            best=d; target=part
+        end
+    end
+    return target
+end
+
+reg("aimbot","Aimbot — FOV·visibility·smoothing","Combat",PERM.MOD,function(_)
     CMD_STATE.aimbot = not CMD_STATE.aimbot
     if CMD_STATE.aimbot then
+        if hasDrawing and getFlag("aim_fovcircle",true) then
+            aimFovCircle=(DrawingNew::any)("Circle")
+            aimFovCircle.Thickness=1; aimFovCircle.NumSides=64; aimFovCircle.Color=Z.lime
+            aimFovCircle.Filled=false; aimFovCircle.Transparency=0.55
+        end
         CMD_STATE.aimbotConn = RunService.RenderStepped:Connect(function()
             if not CMD_STATE.aimbot then return end
-            local cam=Workspace.CurrentCamera; local best=math.huge; local nearest:BasePart?=nil
-            for _,p in ipairs(Players:GetPlayers()) do
-                if p~=localPlayer and p.Character then
-                    local h=p.Character:FindFirstChild("Head")::BasePart?
-                    if h then local d=(h.Position-cam.CFrame.Position).Magnitude
-                        if d<best then best=d; nearest=h end end
-                end
-            end
-            if nearest then cam.CFrame=CFrame.new(cam.CFrame.Position,nearest.Position) end
+            local cam=Workspace.CurrentCamera; if not cam then return end
+            local fov=tonumber(getFlag("aim_fov",120)) or 120
+            if aimFovCircle then aimFovCircle.Visible=true; aimFovCircle.Radius=fov; aimFovCircle.Position=cam.ViewportSize/2 end
+            if getFlag("aim_hold",true) and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then return end
+            local part=getAimTarget(fov, getFlag("aim_visible",true)==true, getFlag("aim_team",false)==true, tostring(getFlag("aim_part","Head")))
+            if not part then return end
+            local smooth=math.clamp(tonumber(getFlag("aim_smooth",0.5)) or 0.5, 0, 0.95)
+            local goal=CFrame.new(cam.CFrame.Position, part.Position)
+            cam.CFrame=cam.CFrame:Lerp(goal, 1-smooth)
         end)
-        notify("Aimbot ON","success")
+        notify("Aimbot ON (hold RMB)","success")
     else
         if CMD_STATE.aimbotConn then CMD_STATE.aimbotConn:Disconnect(); CMD_STATE.aimbotConn=nil end
+        if aimFovCircle then pcall(function() aimFovCircle.Visible=false; aimFovCircle:Remove() end); aimFovCircle=nil end
         notify("Aimbot OFF")
     end
 end)
@@ -766,6 +1007,25 @@ reg("copypos","Copy position to clipboard","Utility",PERM.USER,function(_)
     local p=root.Position; local s=string.format("%.2f, %.2f, %.2f",p.X,p.Y,p.Z)
     if Executor.setclipboard then pcall(function()(Executor.setclipboard::(string)->boolean)(s)end); notify("Copied: "..s,"success")
     else notify("Pos: "..s) end
+end)
+
+-- ── GRAPHICS (merged from v7.0) ────────────────────────────────────────────────
+reg("lowgraphics","Min render quality","World",PERM.USER,function(_)
+    pcall(function() (settings() :: any).Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+    pcall(function() Lighting.GlobalShadows=false; Lighting.FogEnd=1e6 end)
+    notify("Low graphics","success")
+end)
+reg("maxgraphics","Max render quality","World",PERM.USER,function(_)
+    pcall(function() (settings() :: any).Rendering.QualityLevel = Enum.QualityLevel.Level21 end)
+    notify("Max graphics","success")
+end)
+reg("restorelight","Restore default lighting","World",PERM.USER,function(_)
+    pcall(function()
+        Lighting.Brightness=2; Lighting.GlobalShadows=true
+        Lighting.Ambient=Color3.fromRGB(127,127,127); Lighting.OutdoorAmbient=Color3.fromRGB(127,127,127)
+        Lighting.FogEnd=100000
+    end)
+    CMD_STATE.fullbright=false; notify("Lighting restored")
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -899,6 +1159,12 @@ local function drawIcon(name:string, parent:GuiObject, color:Color3): Frame
         ring(11,2,-2,-2); bit(6,2,5,5,45,1)
     elseif name=="bolt" then
         bit(4,8,-1,-3,18,1); bit(4,8,1,3,18,1)
+    elseif name=="webhook" then
+        ring(7,2,-3,-4); ring(7,2,4,-2); ring(7,2,0,5); bit(2,6,-1,0,30,1); bit(2,6,2,1,-30,1)
+    elseif name=="network" then
+        bit(12,2,0,-4,20,1); bit(12,2,0,4,-20,1); bit(4,4,-6,-4,0,2); bit(4,4,6,4,0,2)
+    elseif name=="intel" then
+        bit(13,16,0,0,0,2); bit(8,2,0,-4,0,1); bit(8,2,0,0,0,1); bit(5,2,-1,4,0,1)
     else
         bit(10,10,0,0,0,2)
     end
@@ -928,8 +1194,9 @@ pcall(function()
         if ok and ref then parent=ref end
     end
     if not parent then parent=game.CoreGui end
-    screenGui=mk("ScreenGui",{Name="ZEX_v740",ResetOnSpawn=false,IgnoreGuiInset=true,
+    screenGui=mk("ScreenGui",{Name="ZEX_v800",ResetOnSpawn=false,IgnoreGuiInset=true,
         ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=999,Parent=parent})
+    applyGuiProtection(screenGui)   -- anti-detection: hide from game scripts where supported
     rootMaid:GiveTask(screenGui)
 end)
 if not screenGui then log("ERROR","[ZEX] ScreenGui failed"); return end
@@ -937,7 +1204,7 @@ if not screenGui then log("ERROR","[ZEX] ScreenGui failed"); return end
 local WIN_W, WIN_H = 760, 500
 
 -- background blur (executor-side BlurEffect on Lighting)
-local blurEnabled = true
+local blurEnabled = getFlag("blur",true)==true
 local blur: BlurEffect = mk("BlurEffect",{Name="ZEX_Blur",Size=0,Parent=Lighting})
 rootMaid:GiveTask(blur)
 
@@ -962,7 +1229,10 @@ local window=Frame({Name="Window",Size=UDim2.fromScale(1,1),BackgroundColor3=Z.s
     BorderSizePixel=0,ClipsDescendants=true,ZIndex=2,Parent=holder})
 corner(12).Parent=window
 stroke(Z.border,1).Parent=window
-local uiScale=mk("UIScale",{Scale=1,Parent=window})
+-- premium top inner-highlight (1px) for AAA depth
+Frame({Name="TopHighlight",Size=UDim2.new(1,-24,0,1),Position=UDim2.new(0,12,0,0),
+    BackgroundColor3=Z.text,BackgroundTransparency=0.9,BorderSizePixel=0,ZIndex=10,Parent=window})
+local uiScale=mk("UIScale",{Scale=(tonumber(getFlag("uiscale",100)) or 100)/100,Parent=window})
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 17. TITLE BAR
@@ -982,7 +1252,7 @@ Label({Text="ZEX",Font=F_HEAD,TextSize=16,TextColor3=Z.text,Size=UDim2.new(0,46,
 local verChip=Frame({Size=UDim2.fromOffset(50,18),Position=UDim2.new(0,90,0.5,0),AnchorPoint=Vector2.new(0,0.5),
     BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=4,Parent=topbar})
 corner(9).Parent=verChip; stroke(Z.border,1).Parent=verChip
-Label({Text="v7.4.0",Font=F_BODY,TextSize=9,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=5,Parent=verChip})
+Label({Text="v8.0",Font=F_BODY,TextSize=9,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=5,Parent=verChip})
 local permChip=Frame({Size=UDim2.fromOffset(58,18),Position=UDim2.new(0,148,0.5,0),AnchorPoint=Vector2.new(0,0.5),
     BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=4,Parent=topbar})
 corner(9).Parent=permChip; stroke(Z.border,1).Parent=permChip
@@ -1007,16 +1277,18 @@ local minBtn  =topBtn("minimize",-46,Z.lime)
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 local SIDEBAR_W = 64
-local sidebar=Frame({Name="Sidebar",Size=UDim2.new(0,SIDEBAR_W,1,-46),Position=UDim2.new(0,0,0,46),
-    BackgroundColor3=Z.card,BorderSizePixel=0,ZIndex=3,Parent=window})
-Frame({Size=UDim2.new(0,1,1,0),Position=UDim2.new(1,-1,0,0),BackgroundColor3=Z.border,BorderSizePixel=0,ZIndex=4,Parent=sidebar})
+local sidebar=Scroll({Name="Sidebar",Size=UDim2.new(0,SIDEBAR_W,1,-46),Position=UDim2.new(0,0,0,46),
+    BackgroundColor3=Z.card,ScrollBarThickness=0,ScrollingDirection=Enum.ScrollingDirection.Y,
+    CanvasSize=UDim2.new(),ZIndex=3,Parent=window})
+Frame({Size=UDim2.new(0,1,1,0),Position=UDim2.new(0,SIDEBAR_W-1,0,46),BackgroundColor3=Z.border,BorderSizePixel=0,ZIndex=4,Parent=window})
 
 local TABS = {
     {id="Dashboard",icon="dashboard"},{id="Player",icon="player"},{id="Combat",icon="combat"},
-    {id="World",icon="world"},{id="Server",icon="server"},{id="Commands",icon="commands"},
+    {id="World",icon="world"},{id="Server",icon="server"},{id="Webhooks",icon="webhook"},
+    {id="Network",icon="network"},{id="Intel",icon="intel"},{id="Commands",icon="commands"},
     {id="Console",icon="console"},{id="Settings",icon="settings"},
 }
-local BTN_SZ, BTN_GAP, BTN_Y0 = 44, 8, 14
+local BTN_SZ, BTN_GAP, BTN_Y0 = 44, 8, 12
 local indicator=Frame({Name="Indicator",Size=UDim2.fromOffset(3,24),AnchorPoint=Vector2.new(0,0.5),
     Position=UDim2.new(0,0,0,BTN_Y0+BTN_SZ/2),BackgroundColor3=Z.lime,BorderSizePixel=0,ZIndex=5,Parent=sidebar})
 corner(2).Parent=indicator
@@ -1038,11 +1310,12 @@ for i,t in ipairs(TABS) do
     sidebarBtns[t.id]={btn=b,icon=ic,y=y+BTN_SZ/2}
     b.MouseEnter:Connect(function()
         tooltipLbl.Text=t.id
-        tooltip.Position=UDim2.new(0,SIDEBAR_W+8,0,46+y+(BTN_SZ-22)/2)
+        tooltip.Position=UDim2.fromOffset(SIDEBAR_W+8, (b.AbsolutePosition.Y-window.AbsolutePosition.Y)+(BTN_SZ-22)/2)
         tooltip.Visible=true
     end)
     b.MouseLeave:Connect(function() tooltip.Visible=false end)
 end
+sidebar.CanvasSize=UDim2.new(0,0,0,BTN_Y0+#TABS*(BTN_SZ+BTN_GAP)+12)
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 19. CONTENT AREA + INPUT BAR
@@ -1192,12 +1465,13 @@ function Components.Keybind(parent:Instance, maid:Maid, order:number, cfg:{Title
     corner(6).Parent=keyBtn; stroke(Z.border,1).Parent=keyBtn
     local capturing=false
     maid:GiveTask(keyBtn.MouseButton1Click:Connect(function()
-        capturing=true; keyBtn.Text="..."; keyBtn.TextColor3=Z.warn
+        capturing=true; capturingKeybind=true; keyBtn.Text="..."; keyBtn.TextColor3=Z.warn
     end))
     maid:GiveTask(UserInputService.InputBegan:Connect(function(inp:InputObject,gp:boolean)
-        if capturing and inp.UserInputType==Enum.UserInputType.Keyboard then
-            capturing=false; cfg.Set(inp.KeyCode); keyBtn.Text=inp.KeyCode.Name; keyBtn.TextColor3=Z.lime
-        end
+        if not capturing or inp.UserInputType~=Enum.UserInputType.Keyboard then return end
+        capturing=false; task.defer(function() capturingKeybind=false end)  -- clear next frame so menu toggle ignores this press
+        if inp.KeyCode==Enum.KeyCode.Escape then keyBtn.Text=cfg.Get().Name; keyBtn.TextColor3=Z.lime; return end  -- Esc cancels
+        cfg.Set(inp.KeyCode); keyBtn.Text=inp.KeyCode.Name; keyBtn.TextColor3=Z.lime
     end))
     hoverFx(row,maid,{BackgroundColor3=Z.card},{BackgroundColor3=Z.hover})
 end
@@ -1213,7 +1487,11 @@ function Components.Dropdown(parent:Instance, maid:Maid, order:number, cfg:{Titl
     drawIcon("minimize",Frame({Size=UDim2.fromOffset(18,18),Position=UDim2.new(1,-20,0.5,0),
         AnchorPoint=Vector2.new(0,0.5),BackgroundTransparency=1,ZIndex=7,Parent=sel}),Z.text3)
     local popup: Frame? = nil
-    local function close() if popup then popup:Destroy(); popup=nil end end
+    local closeConn: RBXScriptConnection? = nil
+    local function close()
+        if closeConn then closeConn:Disconnect(); closeConn=nil end
+        if popup then popup:Destroy(); popup=nil end
+    end
     maid:GiveTask(function() close() end)
     maid:GiveTask(sel.MouseButton1Click:Connect(function()
         if popup then close(); return end
@@ -1223,6 +1501,16 @@ function Components.Dropdown(parent:Instance, maid:Maid, order:number, cfg:{Titl
             Position=UDim2.fromOffset(sel.AbsolutePosition.X, sel.AbsolutePosition.Y+sel.AbsoluteSize.Y+4),
             Parent=screenGui})
         popup=p; corner(8).Parent=p; stroke(Z.borderHi,1).Parent=p
+        -- dismiss when clicking anywhere outside the popup or its trigger button
+        closeConn=UserInputService.InputBegan:Connect(function(inp:InputObject)
+            if inp.UserInputType~=Enum.UserInputType.MouseButton1 and inp.UserInputType~=Enum.UserInputType.Touch then return end
+            local m=UserInputService:GetMouseLocation()
+            local function inside(g:GuiObject): boolean
+                local ap,sz=g.AbsolutePosition,g.AbsoluteSize
+                return m.X>=ap.X and m.X<=ap.X+sz.X and m.Y>=ap.Y and m.Y<=ap.Y+sz.Y
+            end
+            if not inside(p) and not inside(sel) then close() end
+        end)
         local ps=Scroll({Size=UDim2.fromScale(1,1),BackgroundTransparency=1,CanvasSize=UDim2.new(),
             AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=61,Parent=p})
         mk("UIListLayout",{Padding=UDim.new(0,2),Parent=ps}); mk("UIPadding",{PaddingTop=UDim.new(0,3),PaddingLeft=UDim.new(0,3),PaddingRight=UDim.new(0,3),Parent=ps})
@@ -1264,16 +1552,83 @@ function Components.Paragraph(parent:Instance, order:number): TextLabel
     return l
 end
 
+-- Hero profile card: circular avatar headshot + identity + live rank chip.
+function Components.Profile(parent:Instance, maid:Maid, order:number)
+    local card=Frame({BackgroundColor3=Z.surface,BorderSizePixel=0,Size=UDim2.new(1,0,0,84),
+        LayoutOrder=order,ZIndex=4,Parent=parent})
+    corner(12).Parent=card; stroke(Z.border,1).Parent=card
+    -- accent rail
+    Frame({Size=UDim2.fromOffset(3,52),Position=UDim2.new(0,0,0.5,0),AnchorPoint=Vector2.new(0,0.5),
+        BackgroundColor3=Z.lime,BorderSizePixel=0,ZIndex=5,Parent=card})
+    -- avatar ring + headshot
+    local ring=Frame({Size=UDim2.fromOffset(60,60),Position=UDim2.new(0,16,0.5,0),AnchorPoint=Vector2.new(0,0.5),
+        BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=5,Parent=card})
+    corner(30).Parent=ring; stroke(Z.lime,2).Parent=ring
+    local avatar=mk("ImageLabel",{Name="Avatar",BackgroundTransparency=1,Size=UDim2.fromScale(1,1),
+        ScaleType=Enum.ScaleType.Crop,ZIndex=6,Parent=ring}) :: ImageLabel
+    mk("UICorner",{CornerRadius=UDim.new(1,0),Parent=avatar})
+    task.spawn(function()
+        if not localPlayer then return end
+        local ok,url=pcall(function()
+            return Players:GetUserThumbnailAsync(localPlayer.UserId,
+                Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+        end)
+        if ok and url and avatar and avatar.Parent then avatar.Image=url end
+    end)
+    -- identity
+    local nameL=Label({Text=if localPlayer then localPlayer.DisplayName else "Player",
+        Font=F_HEAD,TextSize=16,TextColor3=Z.text,Size=UDim2.new(1,-200,0,18),
+        Position=UDim2.new(0,90,0,18),TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=6,Parent=card})
+    Label({Text=if localPlayer then "@"..localPlayer.Name.."  ·  uid "..tostring(localPlayer.UserId) else "",
+        Font=F_BODY,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,-200,0,14),
+        Position=UDim2.new(0,90,0,38),TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=6,Parent=card})
+    Label({Text=if localPlayer then tostring(localPlayer.AccountAge).." days  ·  "..tostring(localPlayer.MembershipType) else "",
+        Font=F_THIN,TextSize=10,TextColor3=Z.text3,Size=UDim2.new(1,-200,0,14),
+        Position=UDim2.new(0,90,0,54),TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=6,Parent=card})
+    -- rank chip (top-right)
+    local rankChip=Frame({Size=UDim2.fromOffset(70,22),Position=UDim2.new(1,-16,0,16),AnchorPoint=Vector2.new(1,0),
+        BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=6,Parent=card})
+    corner(11).Parent=rankChip; stroke(Z.lime,1).Parent=rankChip
+    Label({Text=PERM_NAMES[userRank],Font=F_BTN,TextSize=10,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=7,Parent=rankChip})
+end
+
+-- Section header strip (lightweight, for data pages)
+function Components.Header(parent:Instance, order:number, title:string)
+    local h=Frame({BackgroundTransparency=1,Size=UDim2.new(1,0,0,22),LayoutOrder=order,ZIndex=4,Parent=parent})
+    Frame({Size=UDim2.fromOffset(3,14),Position=UDim2.new(0,0,0.5,0),AnchorPoint=Vector2.new(0,0.5),BackgroundColor3=Z.lime,BorderSizePixel=0,ZIndex=5,Parent=h})
+    Label({Text=title:upper(),Font=F_HEAD,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,-12,1,0),
+        Position=UDim2.new(0,12,0,0),TextXAlignment=Enum.TextXAlignment.Left,ZIndex=5,Parent=h})
+end
+
+-- Read-only label : value row (intelligence dump)
+function Components.Field(parent:Instance, order:number, label:string, value:any): TextLabel
+    local row=Frame({BackgroundColor3=Z.card,BorderSizePixel=0,Size=UDim2.new(1,0,0,28),LayoutOrder=order,ZIndex=5,Parent=parent})
+    corner(6).Parent=row; stroke(Z.border,1).Parent=row
+    Label({Text=label,Font=F_BODY,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(0.4,-12,1,0),
+        Position=UDim2.new(0,12,0,0),TextXAlignment=Enum.TextXAlignment.Left,ZIndex=6,Parent=row})
+    return Label({Text=tostring(value),Font=F_CODE,TextSize=11,TextColor3=Z.text,Size=UDim2.new(0.6,-12,1,0),
+        Position=UDim2.new(0.4,0,0,0),TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=6,Parent=row})
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 21. TAB BUILDERS
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 local toggleKey = Enum.KeyCode.RightShift
+do  -- restore saved toggle key
+    local n=getFlag("toggle_key",nil)
+    if type(n)=="string" then local ok,kc=pcall(function() return (Enum.KeyCode::any)[n] end); if ok and kc then toggleKey=kc end end
+end
+
+-- forward declares for overlays created in the entry section (referenced by Settings)
+local watermark: Frame? = nil
+local keybindList: Frame? = nil
 
 local Pages: {[string]:(host:Frame,maid:Maid)->()} = {}
 
 Pages.Dashboard=function(host,maid)
     local page,layout=Components.Page(host)
+    Components.Profile(page,maid,0)
     local grid=Frame({BackgroundTransparency=1,Size=UDim2.new(1,0,0,140),LayoutOrder=1,ZIndex=4,Parent=page})
     mk("UIGridLayout",{CellSize=UDim2.new(0.5,-6,0,64),CellPadding=UDim2.fromOffset(12,12),
         FillDirectionMaxCells=2,Parent=grid})
@@ -1333,14 +1688,41 @@ Pages.Player=function(host,maid)
     Components.Button(av.body,maid,3,{Title="Heal",Color=Z.lime,Callback=function() CommandRegistry["heal"].run({}) end})
 end
 
+local function flagToggle(flag:string, def:boolean): {Get:()->boolean,Toggle:()->()}
+    return {
+        Get=function() return getFlag(flag,def)==true end,
+        Toggle=function() setFlag(flag, not (getFlag(flag,def)==true)) end,
+    }
+end
+
 Pages.Combat=function(host,maid)
     local page=Components.Page(host)
-    local s=Components.Section(page,"Visuals & Aim",1)
-    Components.Toggle(s.body,maid,1,{Title="ESP (box + name + health + distance)",Get=function() return CMD_STATE.esp end,Toggle=function() CommandRegistry["esp"].run({}) end})
-    Components.Toggle(s.body,maid,2,{Title="Aimbot (nearest, hold)",Get=function() return CMD_STATE.aimbot end,Toggle=function() CommandRegistry["aimbot"].run({}) end})
+    local s=Components.Section(page,"Master Toggles",1)
+    Components.Toggle(s.body,maid,1,{Title="ESP",Get=function() return CMD_STATE.esp end,Toggle=function() CommandRegistry["esp"].run({}) end})
+    Components.Toggle(s.body,maid,2,{Title="Aimbot (hold RMB)",Get=function() return CMD_STATE.aimbot end,Toggle=function() CommandRegistry["aimbot"].run({}) end})
     Components.Toggle(s.body,maid,3,{Title="Click Teleport (Ctrl+Click)",Get=function() return CMD_STATE.clicktp end,Toggle=function() CommandRegistry["clicktp"].run({}) end})
-    local p=Components.Paragraph(page,2)
-    p.Text="ESP and Aimbot run on RenderStepped and clean up fully on toggle-off via a\ndedicated Maid. Combat features are local-render only."
+
+    local e=Components.Section(page,"ESP Options",2)
+    local fb
+    fb=flagToggle("esp_box",true);      Components.Toggle(e.body,maid,1,{Title="Box",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("esp_name",true);     Components.Toggle(e.body,maid,2,{Title="Name",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("esp_health",true);   Components.Toggle(e.body,maid,3,{Title="Health bar",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("esp_distance",true); Components.Toggle(e.body,maid,4,{Title="Distance",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("esp_tracer",false);  Components.Toggle(e.body,maid,5,{Title="Tracers",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("esp_team",false);    Components.Toggle(e.body,maid,6,{Title="Show teammates",Get=fb.Get,Toggle=fb.Toggle})
+    Components.Slider(e.body,maid,7,{Title="Max distance (0 = unlimited)",Min=0,Max=2000,Default=tonumber(getFlag("esp_maxdist",0)) or 0,Suffix="m",Callback=function(v) setFlag("esp_maxdist",v) end})
+
+    local a=Components.Section(page,"Aimbot Options",3)
+    fb=flagToggle("aim_visible",true);  Components.Toggle(a.body,maid,1,{Title="Visibility check (raycast)",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("aim_team",false);    Components.Toggle(a.body,maid,2,{Title="Target teammates",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("aim_hold",true);     Components.Toggle(a.body,maid,3,{Title="Hold RMB to aim",Get=fb.Get,Toggle=fb.Toggle})
+    fb=flagToggle("aim_fovcircle",true);Components.Toggle(a.body,maid,4,{Title="Show FOV circle",Get=fb.Get,Toggle=fb.Toggle})
+    Components.Slider(a.body,maid,5,{Title="FOV radius",Min=20,Max=400,Default=tonumber(getFlag("aim_fov",120)) or 120,Suffix="px",Callback=function(v) setFlag("aim_fov",v) end})
+    Components.Slider(a.body,maid,6,{Title="Smoothing",Min=0,Max=95,Default=math.floor((tonumber(getFlag("aim_smooth",0.5)) or 0.5)*100),Suffix="%",Callback=function(v) setFlag("aim_smooth",v/100) end})
+    Components.Dropdown(a.body,maid,7,{Title="Target part",Options=function() return {"Head","HumanoidRootPart","Torso"} end,Callback=function(v) setFlag("aim_part",v) end})
+
+    local p=Components.Paragraph(page,4)
+    p.Text=(if hasDrawing then "Drawing API detected — full box/tracer/FOV-circle ESP active." else "No Drawing API on this executor — ESP uses Highlight fallback.").."\nAll options persist to "..CONFIG_PATH.." and survive re-execution."
 end
 
 Pages.World=function(host,maid)
@@ -1376,6 +1758,150 @@ Pages.Server=function(host,maid)
         local o={}; for _,p in ipairs(Players:GetPlayers()) do if p~=localPlayer then table.insert(o,p.Name) end end; return o
     end,Callback=function(v) CommandRegistry["view"].run({v}) end})
     Components.Button(t.body,maid,3,{Title="Stop Spectating",Callback=function() CommandRegistry["unview"].run({}) end})
+end
+
+-- INTEL — full profile/server/device intelligence dump (merged from v7.0)
+Pages.Intel=function(host,maid)
+    local page=Components.Page(host)
+    Components.Header(page,1,"Identity")
+    Components.Field(page,2,"UserId",localPlayer.UserId)
+    Components.Field(page,3,"Username",localPlayer.Name)
+    Components.Field(page,4,"DisplayName",localPlayer.DisplayName)
+    Components.Field(page,5,"AccountAge",localPlayer.AccountAge.." days")
+    Components.Field(page,6,"Membership",tostring(localPlayer.MembershipType))
+    Components.Field(page,7,"Verified",localPlayer.HasVerifiedBadge and "Yes" or "No")
+    Components.Header(page,10,"Network / Locale")
+    Components.Field(page,11,"Country",tryGet(function() return (game:GetService("LocalizationService")::any):GetCountryRegionForPlayerAsync(localPlayer) end,"unknown"))
+    Components.Field(page,12,"Locale",tryGet(function() return (game:GetService("LocalizationService")::any).LocaleId end,"unknown"))
+    Components.Field(page,13,"Team",(localPlayer.Team and localPlayer.Team.Name) or "None")
+    Components.Header(page,20,"Character")
+    local hpF=Components.Field(page,21,"Health","--")
+    local wsF=Components.Field(page,22,"WalkSpeed","--")
+    local jpF=Components.Field(page,23,"JumpPower","--")
+    local stF=Components.Field(page,24,"State","--")
+    local poF=Components.Field(page,25,"Position","--")
+    Components.Header(page,30,"Server")
+    Components.Field(page,31,"PlaceId",game.PlaceId)
+    Components.Field(page,32,"JobId",tostring(game.JobId):sub(1,18).."…")
+    Components.Field(page,33,"GameName",tryGet(function() return (game:GetService("MarketplaceService")::any):GetProductInfo(game.PlaceId).Name end,"Unknown"))
+    Components.Field(page,34,"PlaceVersion",game.PlaceVersion)
+    local plF=Components.Field(page,35,"Players","--")
+    Components.Header(page,40,"Environment / Device")
+    Components.Field(page,41,"Platform",tostring(UserInputService:GetPlatform()))
+    Components.Field(page,42,"Touch",tostring(UserInputService.TouchEnabled))
+    Components.Field(page,43,"Gravity",tostring(Workspace.Gravity))
+    Components.Field(page,44,"IsStudio",tostring(RunService:IsStudio()))
+    local reF=Components.Field(page,45,"Resolution","--")
+    local running=true; maid:GiveTask(function() running=false end)
+    local function refresh()
+        local char=localPlayer.Character
+        local hum=char and char:FindFirstChildOfClass("Humanoid")
+        local root=char and char:FindFirstChild("HumanoidRootPart")
+        hpF.Text=hum and string.format("%.0f / %.0f",hum.Health,hum.MaxHealth) or "N/A"
+        wsF.Text=hum and tostring(hum.WalkSpeed) or "N/A"
+        jpF.Text=hum and tostring(hum.JumpPower) or "N/A"
+        stF.Text=hum and tostring(hum:GetState()) or "N/A"
+        poF.Text=root and string.format("%d, %d, %d",root.Position.X,root.Position.Y,root.Position.Z) or "N/A"
+        plF.Text=tostring(#Players:GetPlayers()).." / "..tostring(Players.MaxPlayers)
+        local cam=Workspace.CurrentCamera
+        reF.Text=cam and (math.floor(cam.ViewportSize.X).."x"..math.floor(cam.ViewportSize.Y)) or "unknown"
+    end
+    refresh(); task.spawn(function() while running and task.wait(1) do refresh() end end)
+end
+
+-- WEBHOOKS — WebhookPulse transmitter, 4 payload modes (merged from v7.0)
+Pages.Webhooks=function(host,maid)
+    local page=Components.Page(host)
+    local s=Components.Section(page,"WebhookPulse Transmitter",1)
+    local urlRow=rowBase(s.body,32,1)
+    local urlBox=TextBox({PlaceholderText="https://webhookpulse.vercel.app/api/webhook-receive?path=…",PlaceholderColor3=Z.text3,
+        Text=tostring(getFlag("wh_url","")),Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,
+        TextXAlignment=Enum.TextXAlignment.Left,Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,12,0,0),ZIndex=6,Parent=urlRow})
+    maid:GiveTask(urlBox.FocusLost:Connect(function() setFlag("wh_url",urlBox.Text) end))
+    local secRow=rowBase(s.body,32,2)
+    local secBox=TextBox({PlaceholderText="X-Webhook-Secret (optional)",PlaceholderColor3=Z.text3,
+        Text=tostring(getFlag("wh_secret","")),Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,
+        TextXAlignment=Enum.TextXAlignment.Left,Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,12,0,0),ZIndex=6,Parent=secRow})
+    maid:GiveTask(secBox.FocusLost:Connect(function() setFlag("wh_secret",secBox.Text) end))
+    local modes={"FULL (all fields)","IDENTITY only","CHARACTER only","MINIMAL (id+name)"}
+    Components.Dropdown(s.body,maid,3,{Title="Payload mode",Options=function() return modes end,Callback=function(v)
+        for i,m in ipairs(modes) do if m==v then setFlag("wh_mode",i) end end
+    end})
+    local logPara=Components.Paragraph(page,2); logPara.Text="Waiting for transmission…"
+    local function logLine(msg:string) logPara.Text=os.date("%H:%M:%S").."  "..msg.."\n"..logPara.Text end
+    local function buildPayload(mode:number): {[string]:any}
+        local p:{[string]:any}={source="roblox",timestamp=os.time(),version="8.0",
+            executor={name=tryGet(function() local f=resolveGlobal("identifyexecutor"); return (f and (f::any)()) or "unknown" end,"unknown")}}
+        if mode==1 or mode==2 or mode==4 then
+            p.player={userid=localPlayer.UserId,username=localPlayer.Name,displayname=localPlayer.DisplayName,
+                accountage=localPlayer.AccountAge,membership=tostring(localPlayer.MembershipType),
+                verified=localPlayer.HasVerifiedBadge or false,
+                country=tryGet(function() return (game:GetService("LocalizationService")::any):GetCountryRegionForPlayerAsync(localPlayer) end,"unknown"),
+                team=(localPlayer.Team and localPlayer.Team.Name) or nil}
+        end
+        if mode==1 or mode==3 then
+            local char=localPlayer.Character; local hum=char and char:FindFirstChildOfClass("Humanoid")
+            local root=char and char:FindFirstChild("HumanoidRootPart")
+            p.character={health=hum and hum.Health or nil,maxhealth=hum and hum.MaxHealth or nil,
+                walkspeed=hum and hum.WalkSpeed or nil,jumppower=hum and hum.JumpPower or nil,
+                position=root and {x=math.floor(root.Position.X),y=math.floor(root.Position.Y),z=math.floor(root.Position.Z)} or nil}
+        end
+        if mode==1 then
+            p.game={placeid=game.PlaceId,jobid=game.JobId,numplayers=#Players:GetPlayers(),maxplayers=Players.MaxPlayers,isloaded=game.IsLoaded}
+            p.device={os=tostring(UserInputService:GetPlatform()),touchenabled=UserInputService.TouchEnabled,
+                mouseenabled=UserInputService.MouseEnabled,keyboardenabled=UserInputService.KeyboardEnabled}
+        end
+        if mode==4 then p={source="roblox",timestamp=os.time(),player={userid=localPlayer.UserId,username=localPlayer.Name}} end
+        return p
+    end
+    Components.Button(s.body,maid,4,{Title="TRANSMIT TO WEBHOOKPULSE",Color=Z.lime,Callback=function()
+        local url=urlBox.Text:match("^%s*(.-)%s*$") or ""
+        local valid,err=validateUrl(url); if not valid then logLine("Invalid URL: "..err); notify("Invalid URL: "..err,"danger"); return end
+        if not checkRateLimit(url) then logLine("Rate limited"); notify("Rate limited","warn"); return end
+        local mode=tonumber(getFlag("wh_mode",1)) or 1
+        logLine("Building payload (mode "..mode..")…")
+        task.spawn(function()
+            local body=HttpService:JSONEncode(buildPayload(mode))
+            logLine("Payload "..#body.." bytes — sending…")
+            local headers:{[string]:string}={["Content-Type"]="application/json"}
+            local sec=secBox.Text:gsub("[%z\r\n]",""); if #sec>0 then headers["X-Webhook-Secret"]=sec end
+            local res=httpRequest({Url=url,Method="POST",Headers=headers,Body=body})
+            if res.success then logLine("OK ["..tostring(res.status).."] — stored in WebhookPulse."); notify("Webhook OK ["..tostring(res.status).."]","success")
+            else logLine("FAILED: "..(res.error or "?")); notify("Webhook failed: "..(res.error or "?"),"danger") end
+        end)
+    end})
+end
+
+-- NETWORK — raw HTTP tester with multi-fallback transport (merged from v7.0)
+Pages.Network=function(host,maid)
+    local page=Components.Page(host)
+    local s=Components.Section(page,"Raw HTTP Tester",1)
+    local urlRow=rowBase(s.body,32,1)
+    local urlBox=TextBox({PlaceholderText="https://httpbin.org/post",PlaceholderColor3=Z.text3,Text="",
+        Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,TextXAlignment=Enum.TextXAlignment.Left,
+        Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,12,0,0),ZIndex=6,Parent=urlRow})
+    local bodyRow=rowBase(s.body,64,2)
+    local bodyBox=TextBox({PlaceholderText='{"test":true}',PlaceholderColor3=Z.text3,Text='{"test":true}',
+        Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,TextXAlignment=Enum.TextXAlignment.Left,
+        TextYAlignment=Enum.TextYAlignment.Top,MultiLine=true,ClearTextOnFocus=false,
+        Size=UDim2.new(1,-20,1,-8),Position=UDim2.new(0,12,0,4),ZIndex=6,Parent=bodyRow})
+    local methods={"POST","GET","PUT","DELETE"}; local methodIdx=1
+    Components.Dropdown(s.body,maid,3,{Title="Method",Options=function() return methods end,Callback=function(v)
+        for i,m in ipairs(methods) do if m==v then methodIdx=i end end
+    end})
+    local logPara=Components.Paragraph(page,2); logPara.Text="Waiting…"
+    local function logLine(msg:string) logPara.Text=os.date("%H:%M:%S").."  "..msg.."\n"..logPara.Text end
+    Components.Button(s.body,maid,4,{Title="SEND RAW HTTP",Color=Z.info,Callback=function()
+        local url=urlBox.Text:match("^%s*(.-)%s*$") or ""
+        if not url:match("^https://") then logLine("HTTPS required"); return end
+        if url:match("^https://%d+%.%d+%.%d+%.%d+") or url:lower():match("^https://localhost") then logLine("IP/localhost blocked (SSRF)"); return end
+        logLine("Sending "..methods[methodIdx].." → "..url)
+        task.spawn(function()
+            local res=httpRequest({Url=url,Method=methods[methodIdx],Headers={["Content-Type"]="application/json"},Body=bodyBox.Text})
+            if res.success then logLine("OK ["..tostring(res.status).."]: "..tostring(res.body):sub(1,120))
+            else logLine("FAILED: "..(res.error or "?")) end
+        end)
+    end})
 end
 
 Pages.Commands=function(host,maid)
@@ -1473,39 +1999,35 @@ end
 Pages.Settings=function(host,maid)
     local page=Components.Page(host)
     local g=Components.Section(page,"General",1)
-    Components.Keybind(g.body,maid,1,{Title="Toggle menu key",Get=function() return toggleKey end,Set=function(k) toggleKey=k; notify("Toggle key: "..k.Name) end})
+    Components.Keybind(g.body,maid,1,{Title="Toggle menu key",Get=function() return toggleKey end,Set=function(k) toggleKey=k; setFlag("toggle_key",k.Name); notify("Toggle key: "..k.Name) end})
     Components.Toggle(g.body,maid,2,{Title="Background blur",Get=function() return blurEnabled end,Toggle=function()
-        blurEnabled=not blurEnabled; tween(blur,{Size=if blurEnabled then 14 else 0},SMOOTH)
+        blurEnabled=not blurEnabled; setFlag("blur",blurEnabled); tween(blur,{Size=if blurEnabled then 14 else 0},SMOOTH)
     end})
-    Components.Slider(g.body,maid,3,{Title="UI Scale",Min=70,Max=120,Default=100,Suffix="%",Callback=function(v) uiScale.Scale=v/100 end})
+    Components.Slider(g.body,maid,3,{Title="UI Scale",Min=70,Max=120,Default=tonumber(getFlag("uiscale",100)) or 100,Suffix="%",Callback=function(v) uiScale.Scale=v/100; setFlag("uiscale",v) end})
+    Components.Toggle(g.body,maid,4,{Title="Watermark (FPS/ping/clock)",Get=function() return getFlag("watermark",true)==true end,Toggle=function()
+        local on=not (getFlag("watermark",true)==true); setFlag("watermark",on); if watermark then watermark.Visible=on end
+    end})
+    Components.Toggle(g.body,maid,5,{Title="Keybind list",Get=function() return getFlag("keybindlist",true)==true end,Toggle=function()
+        local on=not (getFlag("keybindlist",true)==true); setFlag("keybindlist",on); if keybindList then keybindList.Visible=on end
+    end})
     local permBtnApi: any = nil
-    permBtnApi = Components.Button(g.body,maid,4,{Title="Permission: "..PERM_NAMES[userRank],Color=Z.lime,Callback=function()
+    permBtnApi = Components.Button(g.body,maid,6,{Title="Permission: "..PERM_NAMES[userRank],Color=Z.lime,Callback=function()
         userRank=(userRank%4)+1; permChipLbl.Text=PERM_NAMES[userRank]
         if permBtnApi then permBtnApi.Label.Text="Permission: "..PERM_NAMES[userRank] end
     end})
-    local w=Components.Section(page,"WebhookPulse",2)
-    local urlRow=rowBase(w.body,32,1)
-    local urlBox=TextBox({PlaceholderText="https://webhookpulse.vercel.app/api/...",PlaceholderColor3=Z.text3,Text="",
-        Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,TextXAlignment=Enum.TextXAlignment.Left,
-        Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,12,0,0),ZIndex=6,Parent=urlRow})
-    local secRow=rowBase(w.body,32,2)
-    local secBox=TextBox({PlaceholderText="X-Webhook-Secret (optional)",PlaceholderColor3=Z.text3,Text="",
-        Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,TextXAlignment=Enum.TextXAlignment.Left,
-        Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,12,0,0),ZIndex=6,Parent=secRow})
-    Components.Button(w.body,maid,3,{Title="Send Test Payload",Color=Z.info,Callback=function()
-        local url=urlBox.Text:match("^%s*(.-)%s*$") or ""
-        local valid,err=validateUrl(url); if not valid then notify("Invalid URL: "..err,"danger"); return end
-        if not checkRateLimit(url) then notify("Rate limited","warn"); return end
-        notify("Sending test...")
-        task.spawn(function()
-            local res=httpRequest({Url=url,Method="POST",Headers={["Content-Type"]="application/json",["X-Webhook-Secret"]=secBox.Text:gsub("[%z\r\n]","")},
-                Body=HttpService:JSONEncode({source="zex",version="7.4.0",player={userid=localPlayer.UserId,username=localPlayer.Name},test=true})})
-            if res.success then notify("Webhook OK ["..tostring(res.status).."]","success")
-            else notify("Webhook failed: "..(res.error or "?"),"danger") end
-        end)
+    local c=Components.Section(page,"Configuration",2)
+    Components.Button(c.body,maid,1,{Title="Save config now",Color=Z.lime,Callback=function()
+        if not hasFS then notify("No filesystem on this executor","warn"); return end
+        saveConfig(); notify("Saved to "..CONFIG_PATH,"success")
     end})
-    local a=Components.Paragraph(page,3)
-    a.Text="ZEX v7.4.0 ELITE\nVector-icon component GUI · SSRF-guarded HTTP · Maid lifecycle\nToggle with the configured key. Drag the title bar to move."
+    Components.Button(c.body,maid,2,{Title="Reset config (clear all)",Color=Z.danger,Callback=function()
+        for k in pairs(Flags) do Flags[k]=nil end; saveConfig(); notify("Config reset — re-execute to apply","warn")
+    end})
+    Components.Paragraph(page,3).Text= if hasFS
+        then "Persistence active. All toggles, sliders and keybinds auto-save to "..CONFIG_PATH.." (debounced) and reload on next execution."
+        else "Filesystem API not available on this executor — settings persist only for this session."
+    local a=Components.Paragraph(page,4)
+    a.Text="ZEX v8.0 PRIME\nDrawing ESP/aimbot · config persistence · watermark · protect_gui · WebhookPulse transmitter\nCtrl+K command palette · drag title bar to move · toggle with the configured key."
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -1630,6 +2152,144 @@ showNotification=function(title:string,msg:string,level:ToastLevel)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
+-- 24b. COMMAND PALETTE — Ctrl+K fuzzy launcher · full keyboard nav
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+local paletteOpen = false
+
+local function openPalette()
+    if paletteOpen then return end
+    paletteOpen = true
+    local pm = Maid.new()
+
+    local overlay=Frame({Name="Palette",Active=true,Size=UDim2.fromScale(1,1),BackgroundColor3=Z.black,
+        BackgroundTransparency=1,BorderSizePixel=0,ZIndex=80,Parent=screenGui})
+    pm:GiveTask(overlay)
+    tween(overlay,{BackgroundTransparency=0.5},SMOOTH)
+
+    local panel=Frame({Size=UDim2.fromOffset(520,56),AnchorPoint=Vector2.new(0.5,0),
+        Position=UDim2.new(0.5,0,0,86),BackgroundColor3=Z.surface,BorderSizePixel=0,
+        ClipsDescendants=true,ZIndex=81,Parent=overlay})
+    corner(14).Parent=panel; stroke(Z.borderHi,1).Parent=panel
+    -- top inner highlight (premium edge)
+    Frame({Size=UDim2.new(1,0,0,1),BackgroundColor3=Z.text,BackgroundTransparency=0.92,BorderSizePixel=0,ZIndex=85,Parent=panel})
+
+    local head=Frame({Size=UDim2.new(1,0,0,48),BackgroundColor3=Z.card,BorderSizePixel=0,ZIndex=82,Parent=panel})
+    Frame({Size=UDim2.new(1,0,0,1),Position=UDim2.new(0,0,1,-1),BackgroundColor3=Z.border,BorderSizePixel=0,ZIndex=83,Parent=head})
+    drawIcon("search",Frame({Size=UDim2.fromOffset(20,20),Position=UDim2.new(0,16,0.5,0),AnchorPoint=Vector2.new(0,0.5),BackgroundTransparency=1,ZIndex=83,Parent=head}),Z.lime)
+    local box=TextBox({PlaceholderText="Run a command…",PlaceholderColor3=Z.text3,Text="",
+        Font=F_BODY,TextSize=14,TextColor3=Z.text,BackgroundTransparency=1,TextXAlignment=Enum.TextXAlignment.Left,
+        Size=UDim2.new(1,-110,1,0),Position=UDim2.new(0,44,0,0),ClearTextOnFocus=false,ZIndex=83,Parent=head})
+    local hint=Label({Text="ESC",Font=F_CODE,TextSize=10,TextColor3=Z.text3,Size=UDim2.fromOffset(40,18),
+        Position=UDim2.new(1,-54,0.5,0),AnchorPoint=Vector2.new(0,0.5),BackgroundColor3=Z.elevated,ZIndex=83,Parent=head})
+    corner(5).Parent=hint
+
+    local list=Scroll({Size=UDim2.new(1,-8,1,-56),Position=UDim2.fromOffset(4,52),BackgroundTransparency=1,
+        CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=82,Parent=panel})
+    mk("UIListLayout",{Padding=UDim.new(0,3),SortOrder=Enum.SortOrder.LayoutOrder,Parent=list})
+    mk("UIPadding",{PaddingLeft=UDim.new(0,4),PaddingRight=UDim.new(0,4),PaddingTop=UDim.new(0,4),PaddingBottom=UDim.new(0,4),Parent=list})
+    local catCol:{[string]:Color3}={Player=Z.lime,Combat=Z.danger,World=Z.info,Server=Z.warn,Utility=Z.text2}
+
+    local all: {CommandDef}={}
+    for _,c in pairs(CommandRegistry) do table.insert(all,c) end
+    table.sort(all,function(a,b) return a.name<b.name end)
+
+    local filtered: {CommandDef}={}
+    local rows: {TextButton}={}
+    local sel=1
+
+    local function runCmd(cmd:CommandDef)
+        if not canRun(cmd.perm) then notify("No permission: "..cmd.name,"danger"); return end
+        safeCall(function() cmd.run({}) end,"Palette:"..cmd.name)
+    end
+    local function closePalette()
+        if not paletteOpen then return end
+        paletteOpen=false
+        tween(overlay,{BackgroundTransparency=1},FAST)
+        task.delay(0.14,function() pm:Destroy() end)
+    end
+    local function highlight()
+        for i,b in ipairs(rows) do
+            local on=i==sel
+            b.BackgroundColor3=if on then Z.hover else Z.card
+            local bar=b:FindFirstChild("selbar"); if bar and bar:IsA("Frame") then bar.Visible=on end
+        end
+        local b=rows[sel]
+        if b then
+            local top=(b.AbsolutePosition.Y-list.AbsolutePosition.Y)+list.CanvasPosition.Y
+            local bottom=top+b.AbsoluteSize.Y
+            if top<list.CanvasPosition.Y then list.CanvasPosition=Vector2.new(0,math.max(top-4,0))
+            elseif bottom>list.CanvasPosition.Y+list.AbsoluteSize.Y then list.CanvasPosition=Vector2.new(0,bottom-list.AbsoluteSize.Y+4) end
+        end
+    end
+    local function rebuild(q:string)
+        for _,b in ipairs(rows) do b:Destroy() end
+        table.clear(rows); table.clear(filtered)
+        local ql=q:lower()
+        for _,cmd in ipairs(all) do
+            if ql=="" or cmd.name:lower():find(ql,1,true) or cmd.desc:lower():find(ql,1,true) or cmd.category:lower():find(ql,1,true) then
+                table.insert(filtered,cmd)
+            end
+        end
+        if #filtered==0 then
+            local e=Button({Text="",BackgroundColor3=Z.card,Size=UDim2.new(1,0,0,38),LayoutOrder=1,ZIndex=83,Parent=list})
+            corner(7).Parent=e
+            Label({Text="no matching command",Font=F_THIN,TextSize=11,TextColor3=Z.text3,Size=UDim2.fromScale(1,1),ZIndex=84,Parent=e})
+        end
+        for i,cmd in ipairs(filtered) do
+            local b=Button({Text="",BackgroundColor3=Z.card,Size=UDim2.new(1,0,0,38),LayoutOrder=i,ZIndex=83,Parent=list})
+            corner(7).Parent=b
+            Frame({Name="selbar",Size=UDim2.fromOffset(3,20),Position=UDim2.new(0,6,0.5,0),AnchorPoint=Vector2.new(0,0.5),
+                BackgroundColor3=catCol[cmd.category] or Z.lime,BorderSizePixel=0,Visible=false,ZIndex=84,Parent=b})
+            Label({Text=cmd.name,Font=F_BTN,TextSize=12,TextColor3=Z.text,Size=UDim2.new(0,150,1,0),
+                Position=UDim2.new(0,18,0,0),TextXAlignment=Enum.TextXAlignment.Left,ZIndex=84,Parent=b})
+            Label({Text=cmd.desc,Font=F_THIN,TextSize=10,TextColor3=Z.text3,Size=UDim2.new(1,-250,1,0),
+                Position=UDim2.new(0,168,0,0),TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=84,Parent=b})
+            Label({Text=cmd.category,Font=F_CODE,TextSize=9,TextColor3=catCol[cmd.category] or Z.text2,
+                Size=UDim2.new(0,68,1,0),Position=UDim2.new(1,-74,0,0),TextXAlignment=Enum.TextXAlignment.Right,ZIndex=84,Parent=b})
+            local idx=i
+            b.MouseEnter:Connect(function() sel=idx; highlight() end)
+            b.MouseButton1Click:Connect(function() runCmd(cmd); closePalette() end)
+            table.insert(rows,b)
+        end
+        sel=math.clamp(sel,1,math.max(#filtered,1))
+        local visible=math.min(math.max(#filtered,1),7)
+        tween(panel,{Size=UDim2.fromOffset(520, 56+visible*41+6)},SMOOTH)
+        highlight()
+    end
+
+    pm:GiveTask(box:GetPropertyChangedSignal("Text"):Connect(function() sel=1; rebuild(box.Text) end))
+    pm:GiveTask(box.FocusLost:Connect(function(enter)
+        if enter then local cmd=filtered[sel]; if cmd then runCmd(cmd); closePalette() end end
+    end))
+    pm:GiveTask(UserInputService.InputBegan:Connect(function(inp:InputObject)
+        if not paletteOpen then return end
+        if inp.KeyCode==Enum.KeyCode.Escape then closePalette()
+        elseif inp.KeyCode==Enum.KeyCode.Down then sel=math.clamp(sel+1,1,math.max(#filtered,1)); highlight()
+        elseif inp.KeyCode==Enum.KeyCode.Up   then sel=math.clamp(sel-1,1,math.max(#filtered,1)); highlight()
+        end
+    end))
+    pm:GiveTask(overlay.InputBegan:Connect(function(inp:InputObject)
+        if inp.UserInputType~=Enum.UserInputType.MouseButton1 and inp.UserInputType~=Enum.UserInputType.Touch then return end
+        local m=UserInputService:GetMouseLocation()
+        local ap,sz=panel.AbsolutePosition,panel.AbsoluteSize
+        if not (m.X>=ap.X and m.X<=ap.X+sz.X and m.Y>=ap.Y and m.Y<=ap.Y+sz.Y) then closePalette() end
+    end))
+
+    rebuild("")
+    task.defer(function() pcall(function() box:CaptureFocus() end) end)
+end
+
+rootMaid:GiveTask(UserInputService.InputBegan:Connect(function(input:InputObject,gp:boolean)
+    if gp then return end
+    if capturingKeybind then return end
+    if input.KeyCode==Enum.KeyCode.K
+        and (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)) then
+        openPalette()
+    end
+end))
+
+-- ═══════════════════════════════════════════════════════════════════════════════
 -- 25. DRAG · MINIMIZE · CLOSE
 -- ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1677,28 +2337,108 @@ rootMaid:GiveTask(closeBtn.MouseButton1Click:Connect(closeGui))
 
 local guiVisible=true
 local savedPos: UDim2 = UDim2.fromScale(0.5,0.5)
+local function setGuiVisible(visible:boolean)
+    if visible==guiVisible then return end
+    guiVisible=visible
+    if not visible then
+        savedPos=holder.Position
+        tween(holder,{Position=UDim2.new(savedPos.X.Scale,savedPos.X.Offset,1.6,0)},SMOOTH)
+        tween(dim,{BackgroundTransparency=1},SMOOTH)
+        if blurEnabled then tween(blur,{Size=0},SMOOTH) end
+    else
+        tween(holder,{Position=savedPos},SPRING)
+        tween(dim,{BackgroundTransparency=0.55},SMOOTH)
+        if blurEnabled then tween(blur,{Size=14},SMOOTH) end
+    end
+end
 rootMaid:GiveTask(UserInputService.InputBegan:Connect(function(input:InputObject,gp:boolean)
     if gp then return end
-    if input.KeyCode==toggleKey then
-        if guiVisible then
-            guiVisible=false; savedPos=holder.Position
-            tween(holder,{Position=UDim2.new(savedPos.X.Scale,savedPos.X.Offset,1.6,0)},SMOOTH)
-            tween(dim,{BackgroundTransparency=1},SMOOTH)
-            if blurEnabled then tween(blur,{Size=0},SMOOTH) end
-        else
-            guiVisible=true
-            tween(holder,{Position=savedPos},SPRING)
-            tween(dim,{BackgroundTransparency=0.55},SMOOTH)
-            if blurEnabled then tween(blur,{Size=14},SMOOTH) end
-        end
-    end
+    if capturingKeybind then return end   -- a Keybind picker is consuming this key
+    if input.KeyCode==toggleKey then setGuiVisible(not guiVisible) end
 end))
+
+-- ── WATERMARK — live FPS · ping · players · clock (draggable) ───────────────────
+watermark=Frame({Name="Watermark",Size=UDim2.fromOffset(340,28),Position=UDim2.fromOffset(16,16),
+    BackgroundColor3=Z.surface,BorderSizePixel=0,Visible=getFlag("watermark",true)==true,ZIndex=30,Parent=screenGui})
+corner(8).Parent=watermark; stroke(Z.border,1).Parent=watermark
+Frame({Size=UDim2.fromOffset(3,16),Position=UDim2.new(0,10,0.5,0),AnchorPoint=Vector2.new(0,0.5),BackgroundColor3=Z.lime,BorderSizePixel=0,ZIndex=31,Parent=watermark})
+local wmLbl=Label({Text="ZEX v8.0 PRIME",Font=F_BTN,TextSize=11,TextColor3=Z.text,Size=UDim2.new(1,-26,1,0),
+    Position=UDim2.new(0,20,0,0),TextXAlignment=Enum.TextXAlignment.Left,ZIndex=31,Parent=watermark})
+do
+    local wmDrag: Maid? = nil
+    rootMaid:GiveTask(watermark.InputBegan:Connect(function(inp:InputObject)
+        if inp.UserInputType~=Enum.UserInputType.MouseButton1 and inp.UserInputType~=Enum.UserInputType.Touch then return end
+        if wmDrag then wmDrag:Destroy() end; wmDrag=Maid.new()
+        local start=Vector2.new(inp.Position.X,inp.Position.Y); local origin=watermark.AbsolutePosition
+        wmDrag:GiveTask(UserInputService.InputChanged:Connect(function(i2:InputObject)
+            if i2.UserInputType~=Enum.UserInputType.MouseMovement and i2.UserInputType~=Enum.UserInputType.Touch then return end
+            local d=Vector2.new(i2.Position.X,i2.Position.Y)-start
+            watermark.Position=UDim2.fromOffset(origin.X+d.X,origin.Y+d.Y)
+        end))
+        wmDrag:GiveTask(UserInputService.InputEnded:Connect(function(i2:InputObject)
+            if i2.UserInputType==inp.UserInputType then if wmDrag then wmDrag:Destroy(); wmDrag=nil end end
+        end))
+    end))
+    local fps=0
+    rootMaid:GiveTask(RunService.RenderStepped:Connect(function() fps+=1 end))
+    task.spawn(function()
+        local last=os.clock()
+        while screenGui and screenGui.Parent do
+            task.wait(1)
+            local now=os.clock(); local f=math.floor(fps/math.max(now-last,1e-3)); fps=0; last=now
+            local ping="--"
+            pcall(function() if Services.Stats then ping=tostring(math.floor((Services.Stats::any).Network.ServerStatsItem["Data Ping"].Value)) end end)
+            wmLbl.Text=string.format("ZEX v8.0   ·   %d FPS   ·   %s ms   ·   %d players   ·   %s",
+                f, ping, #Players:GetPlayers(), os.date("%H:%M:%S"))
+        end
+    end)
+end
+
+-- ── KEYBIND LIST — active binds (bottom-left) ──────────────────────────────────
+keybindList=Frame({Name="Keybinds",Size=UDim2.fromOffset(196,0),AutomaticSize=Enum.AutomaticSize.Y,
+    Position=UDim2.new(0,16,1,-16),AnchorPoint=Vector2.new(0,1),BackgroundColor3=Z.surface,BorderSizePixel=0,
+    Visible=getFlag("keybindlist",true)==true,ZIndex=30,Parent=screenGui})
+corner(8).Parent=keybindList; stroke(Z.border,1).Parent=keybindList
+mk("UIListLayout",{Padding=UDim.new(0,3),SortOrder=Enum.SortOrder.LayoutOrder,Parent=keybindList})
+mk("UIPadding",{PaddingTop=UDim.new(0,8),PaddingBottom=UDim.new(0,8),PaddingLeft=UDim.new(0,12),PaddingRight=UDim.new(0,12),Parent=keybindList})
+Label({Text="KEYBINDS",Font=F_HEAD,TextSize=10,TextColor3=Z.lime,Size=UDim2.new(1,0,0,14),LayoutOrder=0,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=31,Parent=keybindList})
+local kbToggle=Label({Text="",Font=F_BODY,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,0,0,16),LayoutOrder=1,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=31,Parent=keybindList})
+Label({Text="Command palette — Ctrl+K",Font=F_BODY,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,0,0,16),LayoutOrder=2,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=31,Parent=keybindList})
+Label({Text="Aimbot lock — Hold RMB",Font=F_BODY,TextSize=11,TextColor3=Z.text2,Size=UDim2.new(1,0,0,16),LayoutOrder=3,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=31,Parent=keybindList})
+task.spawn(function() while screenGui and screenGui.Parent do kbToggle.Text="Toggle GUI — "..toggleKey.Name; task.wait(0.5) end end)
+
+-- ── MOBILE — floating toggle button (touch devices only) ───────────────────────
+if UserInputService.TouchEnabled then
+    local fab=Button({Text="",Size=UDim2.fromOffset(52,52),Position=UDim2.new(1,-22,1,-92),AnchorPoint=Vector2.new(1,1),
+        BackgroundColor3=Z.lime,ZIndex=35,Parent=screenGui})
+    corner(26).Parent=fab; drawIcon("bolt",fab,Z.black)
+    local fabDrag: Maid? = nil; local moved=false
+    rootMaid:GiveTask(fab.InputBegan:Connect(function(inp:InputObject)
+        if inp.UserInputType~=Enum.UserInputType.Touch and inp.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+        moved=false
+        if fabDrag then fabDrag:Destroy() end; fabDrag=Maid.new()
+        local start=Vector2.new(inp.Position.X,inp.Position.Y); local origin=fab.AbsolutePosition+fab.AbsoluteSize
+        fabDrag:GiveTask(UserInputService.InputChanged:Connect(function(i2:InputObject)
+            if i2.UserInputType~=Enum.UserInputType.Touch and i2.UserInputType~=Enum.UserInputType.MouseMovement then return end
+            local d=Vector2.new(i2.Position.X,i2.Position.Y)-start
+            if d.Magnitude>6 then moved=true end
+            fab.Position=UDim2.fromOffset(origin.X+d.X,origin.Y+d.Y)
+        end))
+        fabDrag:GiveTask(UserInputService.InputEnded:Connect(function(i2:InputObject)
+            if i2.UserInputType==inp.UserInputType then
+                if fabDrag then fabDrag:Destroy(); fabDrag=nil end
+                if not moved then setGuiVisible(not guiVisible) end
+            end
+        end))
+    end))
+end
 
 rootMaid:GiveTask(screenGui.Destroying:Connect(function()
     if espMaid then espMaid:Destroy(); espMaid=nil end
     if blur then pcall(function() blur:Destroy() end) end
+    saveConfig()
     rootMaid:Destroy()
-    log("INFO","[ZEX] v7.4.0 teardown complete")
+    log("INFO","[ZEX] v8.0 PRIME teardown complete")
 end))
 
 -- entry
@@ -1713,5 +2453,6 @@ task.delay(0.03,function()
 end)
 
 local cmdCount=0; for _ in pairs(CommandRegistry) do cmdCount+=1 end
-log("INFO",string.format("[ZEX] v7.4.0 ELITE booted — %d commands — rank %s",cmdCount,PERM_NAMES[userRank]))
-task.delay(0.6,function() notify("ZEX v7.4.0 ELITE — "..cmdCount.." commands loaded","success") end)
+log("INFO",string.format("[ZEX] v8.0 PRIME booted — %d commands — Drawing:%s FS:%s — rank %s",
+    cmdCount, tostring(hasDrawing), tostring(hasFS), PERM_NAMES[userRank]))
+task.delay(0.6,function() notify("ZEX v8.0 PRIME — "..cmdCount.." commands · Ctrl+K palette","success") end)
