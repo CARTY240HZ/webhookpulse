@@ -6,6 +6,7 @@ import { validateWebhookInput, clampString, isValidUUID } from './_lib/validate.
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { hashSecret } from './_lib/hmac.js'
+import { setSecurityHeaders } from './_lib/security.js'
 
 function generateSlug(name: string): string {
   const base = name
@@ -24,6 +25,8 @@ function generateDiscordToken(): string {
 }
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
+
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()

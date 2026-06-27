@@ -5,8 +5,10 @@ import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import crypto from 'crypto'
 import { hashSecret } from './_lib/hmac.js'
+import { setSecurityHeaders, checkBruteLimit, resetBruteLimit } from './_lib/security.js'
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
   setCorsHeaders(res, 'private')
 
   if (req.method === 'OPTIONS') {
@@ -27,6 +29,12 @@ export default async function handler(req: any, res: any) {
       const body = req.body || {}
       const phone = body.phone?.toString().trim()
       if (!phone || phone.length < 8) return apiError(res, 400, 'INVALID_PHONE')
+
+      // Brute-force protection by user_id
+      const bruteKey = `2fa_send:${user.id}`
+      if (!checkBruteLimit(bruteKey, 3, 600_000)) {
+        return apiError(res, 429, 'TOO_MANY_REQUESTS')
+      }
 
       // Generate 6-digit code with cryptographically secure RNG
       const code = crypto.randomInt(100000, 999999).toString().padStart(6, '0')
@@ -63,6 +71,12 @@ export default async function handler(req: any, res: any) {
       if (!phone || !code) return apiError(res, 400, 'MISSING_FIELDS')
       if (code.length !== 6) return apiError(res, 400, 'INVALID_CODE_LENGTH')
 
+      // Brute-force protection by user_id
+      const bruteKey = `2fa_verify:${user.id}`
+      if (!checkBruteLimit(bruteKey, 5, 600_000)) {
+        return apiError(res, 429, 'TOO_MANY_REQUESTS')
+      }
+
       // Get stored code
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -90,6 +104,9 @@ export default async function handler(req: any, res: any) {
       ) {
         return apiError(res, 400, 'INVALID_CODE')
       }
+
+      // Reset brute limit on success
+      resetBruteLimit(bruteKey)
 
       // Mark as verified
       const { error: updateError } = await supabase

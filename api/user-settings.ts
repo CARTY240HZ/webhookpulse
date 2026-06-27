@@ -4,8 +4,11 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { createClient } from '@supabase/supabase-js'
+import { setSecurityHeaders, checkBruteLimit } from './_lib/security.js'
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
+
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
@@ -128,6 +131,12 @@ export default async function handler(req: any, res: any) {
           return apiError(res, 400, 'MISSING_FIELDS')
         }
 
+        // Brute-force protection
+        const bruteKey = `change_email:${user.id}`
+        if (!checkBruteLimit(bruteKey, 5, 600_000)) {
+          return apiError(res, 429, 'TOO_MANY_REQUESTS')
+        }
+
         // Verify password
         const { data: userData } = await supabase.auth.admin.getUserById(user.id)
         const email = userData?.user?.email
@@ -170,6 +179,12 @@ export default async function handler(req: any, res: any) {
         }
         if (new_password.length < 8) {
           return apiError(res, 400, 'PASSWORD_TOO_SHORT')
+        }
+
+        // Brute-force protection
+        const bruteKey = `change_password:${user.id}`
+        if (!checkBruteLimit(bruteKey, 5, 600_000)) {
+          return apiError(res, 429, 'TOO_MANY_REQUESTS')
         }
 
         // Verify current password
@@ -215,6 +230,12 @@ export default async function handler(req: any, res: any) {
       const { password } = req.body || {}
       if (!password) {
         return apiError(res, 400, 'PASSWORD_REQUIRED')
+      }
+
+      // Brute-force protection
+      const bruteKey = `delete_account:${user.id}`
+      if (!checkBruteLimit(bruteKey, 3, 600_000)) {
+        return apiError(res, 429, 'TOO_MANY_REQUESTS')
       }
 
       // Verify password

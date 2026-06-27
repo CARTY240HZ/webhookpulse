@@ -258,10 +258,16 @@ function validateEmbed(embed: any, index: number): string[] {
 }
 
 export default async function handler(req: any, res: any) {
-  // CORS: restrict to same-origin for Discord webhook endpoint (prevents CSRF from malicious sites)
+  // CORS: exact-match whitelist only (prevents CSRF from malicious sites)
   const appUrl = process.env.APP_URL || 'https://webhookpulse.vercel.app'
   const origin = req.headers.origin || ''
-  if (origin && (origin === appUrl || origin.endsWith('.vercel.app'))) {
+  const allowedOrigins = new Set([
+    appUrl,
+    'https://webhookpulse.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ])
+  if (origin && allowedOrigins.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin)
   }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')

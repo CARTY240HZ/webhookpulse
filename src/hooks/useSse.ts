@@ -30,12 +30,34 @@ export function useSse(url: string, callbacks: SseCallbacks = {}) {
   const connect = useCallback(async () => {
     if (eventSourceRef.current) return
 
-    // Get JWT from Supabase session (correct — not localStorage 'token')
+    // 1. Get JWT from Supabase session
     const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token || ''
-    if (!token) return
+    const jwt = session?.access_token || ''
+    if (!jwt) return
 
-    const es = new EventSource(`${url}?token=${encodeURIComponent(token)}`)
+    // 2. Extract webhookId from URL (e.g., /api/sse-logs?webhookId=xxx)
+    const urlObj = new URL(url, window.location.origin)
+    const webhookId = urlObj.searchParams.get('webhookId')
+    if (!webhookId) return
+
+    // 3. Handshake: exchange JWT for short-lived SSE token
+    const handshakeRes = await fetch('/api/sse-handshake', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ webhookId }),
+    })
+    if (!handshakeRes.ok) {
+      onErrorRef.current?.(new Event('handshake_failed'))
+      return
+    }
+    const { token: sseToken } = await handshakeRes.json()
+    if (!sseToken) return
+
+    // 4. Connect SSE with short-lived token (NOT the Supabase JWT)
+    const es = new EventSource(`${url}&token=${encodeURIComponent(sseToken)}`)
     eventSourceRef.current = es
 
     es.onopen = () => {

@@ -4,11 +4,14 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { setCorsHeaders } from './_lib/cors.js'
+import { setSecurityHeaders, validateSseToken } from './_lib/security.js'
 
 const supabaseUrl = process.env.SUPABASE_URL || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
+
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
@@ -19,17 +22,14 @@ export default async function handler(req: any, res: any) {
 
   setCorsHeaders(res, 'private', req.headers.origin)
 
-  const { webhookId } = req.query
-  if (!webhookId) {
-    return res.status(400).json({ error: 'Missing webhookId' })
+  const { webhookId, token } = req.query
+  if (!webhookId || !token) {
+    return res.status(400).json({ error: 'Missing webhookId or token' })
   }
 
-  // Validate JWT from header or query param (EventSource cannot send headers)
-  const authHeader = req.headers.authorization || ''
-  const tokenFromHeader = authHeader.replace('Bearer ', '')
-  const tokenFromQuery = req.query.token as string | undefined
-  const token = tokenFromQuery || tokenFromHeader
-  if (!token) {
+  // Validate short-lived SSE token (NOT the Supabase JWT)
+  const validated = validateSseToken(String(token))
+  if (!validated || validated.webhookId !== String(webhookId)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
@@ -37,17 +37,12 @@ export default async function handler(req: any, res: any) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  // Verify webhook ownership
+  // Verify webhook ownership matches the token
   const { data: webhook } = await supabase
     .from('webhooks')
     .select('id')
     .eq('id', webhookId)
-    .eq('user_id', user.id)
+    .eq('user_id', validated.userId)
     .single()
 
   if (!webhook) {

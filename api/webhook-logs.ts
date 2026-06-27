@@ -4,6 +4,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { isValidUUID } from './_lib/validate.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
+import { setSecurityHeaders, parseIntSafe, setPrivateCache } from './_lib/security.js'
 
 const MAX_EXPORT_ROWS = 10_000
 
@@ -22,6 +23,8 @@ function escapeCsvCell(value: string): string {
 }
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
+
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, 'private', req.headers.origin)
     return res.status(204).end()
@@ -154,8 +157,8 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const page = Math.max(1, parseInt(req.query?.page || '1', 10))
-    const limit = Math.min(200, Math.max(1, parseInt(req.query?.limit || '50', 10)))
+    const page = Math.max(1, parseIntSafe(req.query?.page, 1))
+    const limit = Math.min(200, Math.max(1, parseIntSafe(req.query?.limit, 50)))
     const offset = (page - 1) * limit
 
     let query = supabase

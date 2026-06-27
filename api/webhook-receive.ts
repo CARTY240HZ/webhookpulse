@@ -6,6 +6,7 @@ import { apiError } from './_lib/errors.js'
 import { verifySecret } from './_lib/hmac.js'
 import { captureException } from './_lib/sentry.js'
 import { checkIpAgainstRules } from './_lib/ipfilter.js'
+import { setSecurityHeaders, honeypotDelay, getTrustedIp, setPrivateCache } from './_lib/security.js'
 import crypto from 'crypto'
 
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
@@ -14,7 +15,8 @@ const ALLOWED_HEADERS = new Set([
   'content-type',
   'user-agent',
   'x-webhook-secret',
-  'x-forwarded-for',
+  'x-vercel-forwarded-for',
+  'x-vercel-ip',
   'accept-encoding',
   'host',
   'content-length',
@@ -31,6 +33,8 @@ function filterHeaders(headers: Record<string, string>): Record<string, string> 
 }
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
+
   if (req.method === 'OPTIONS') {
     res.set(getCorsHeaders('public'))
     return res.status(204).end()
@@ -39,6 +43,15 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
+
+  // Validate Content-Type
+  const contentType = req.headers['content-type'] || ''
+  if (!contentType.includes('application/json')) {
+    return apiError(res, 415, 'UNSUPPORTED_MEDIA_TYPE')
+  }
+
+  // Honeypot timing: constant delay to prevent enumeration via timing
+  await honeypotDelay()
 
   try {
     const supabase = getSupabase()
@@ -79,9 +92,8 @@ export default async function handler(req: any, res: any) {
       payload = {}
     }
 
-    // 4. Extract IP (trust Vercel's forwarded header, not raw x-forwarded-for)
-    const rawIp = req.headers['x-vercel-forwarded-for'] || req.headers['x-vercel-ip'] || req.headers['x-forwarded-for'] || req.headers['client-ip'] || null
-    const ipAddress = rawIp ? String(rawIp).split(',')[0].trim() : null
+    // 4. Extract IP (trust Vercel's forwarded header ONLY)
+    const ipAddress = getTrustedIp(req)
 
     // 5. Find webhook by path (indexed query, not in-memory filter)
     const pathStr = String(path)
@@ -182,7 +194,7 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'WEBHOOK_STORE_FAILED')
     }
 
-    return res.status(200).json({ success: true, logId: insertResult.data.id })
+    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id })
   } catch (err) {
     captureException(err as Error)
     return apiError(res, 500, 'INTERNAL_ERROR')

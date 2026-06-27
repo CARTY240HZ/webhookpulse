@@ -3,8 +3,10 @@ import { getCorsHeaders, setCorsHeaders } from './_lib/cors.js'
 import { requireAuth } from './_lib/auth.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { isValidIpOrCidr } from './_lib/ipfilter.js'
+import { setSecurityHeaders } from './_lib/security.js'
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
   setCorsHeaders(res, 'private', req.headers.origin)
 
   if (req.method === 'OPTIONS') {

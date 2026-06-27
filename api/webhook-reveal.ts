@@ -3,10 +3,12 @@ import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
+import { setSecurityHeaders } from './_lib/security.js'
 import { isValidUUID } from './_lib/validate.js'
 import { checkRateLimit } from './_lib/ratelimit.js'
 
 export default async function handler(req: any, res: any) {
+  setSecurityHeaders(res)
   // CORS must be set before any early return so browser XHR sees the headers
   setCorsHeaders(res, 'private')
 
@@ -51,11 +53,12 @@ export default async function handler(req: any, res: any) {
     }
 
     // Verify password without creating a session (using signIn + immediate signOut)
+    // SECURITY: use ANON key, never service_role key for user auth operations
     const { createClient } = await import('@supabase/supabase-js')
     const supabaseUrl = process.env.SUPABASE_URL || ''
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
-    const authClient = createClient(supabaseUrl, supabaseServiceKey, {
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
