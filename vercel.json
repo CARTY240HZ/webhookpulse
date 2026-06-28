@@ -3,7 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "npm installCommand": "npm ci",
   "functions": {
     "api/2fa.ts": {
       "maxDuration": 10
