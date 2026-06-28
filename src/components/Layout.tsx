@@ -10,16 +10,16 @@ export default function Layout() {
     location.pathname.startsWith('/dashboard/webhooks/')
 
   return (
-    <div className="flex h-full bg-background">
+    <div className="flex h-full" style={{ background: 'var(--bg)' }}>
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopBar />
         <div className="flex-1 flex overflow-hidden">
-          <main className={`flex-1 overflow-auto p-6 ${showActivityFeed ? 'lg:pr-0' : ''}`}>
+          <main className={`flex-1 overflow-auto ${showActivityFeed ? 'lg:pr-0' : ''}`}>
             <Outlet />
           </main>
           {showActivityFeed && (
-            <ActivityFeed className="hidden lg:flex w-80 shrink-0" />
+            <ActivityFeed className="hidden lg:flex w-72 shrink-0 border-l border-[var(--border)]" />
           )}
         </div>
       </div>

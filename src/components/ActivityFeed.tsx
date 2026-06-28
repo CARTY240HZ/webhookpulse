@@ -65,28 +65,24 @@ export default function ActivityFeed({ className = '' }: ActivityFeedProps) {
   }, [logs.length, isPaused])
 
   return (
-    <aside className={`flex flex-col bg-surface border-l border-border ${className}`}>
+    <aside className={`flex flex-col border-l border-[var(--border)] ${className}`}
+      style={{ background: 'var(--bg-secondary)' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] shrink-0">
         <div className="flex items-center gap-2">
-          <Radio className="w-4 h-4 text-accent" />
-          <h2 className="text-sm font-semibold text-text-primary">
+          <Radio className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
             {t('activity.title')}
           </h2>
           <span
-            className={`inline-block w-2 h-2 rounded-full ${
-              isConnected ? 'bg-success' : 'bg-danger'
-            }`}
-            title={
-              isConnected
-                ? t('activity.connected')
-                : t('activity.disconnected')
-            }
+            className={`inline-block w-2 h-2 rounded-full ${isConnected ? 'animate-pulse' : ''}`}
+            style={{ background: isConnected ? 'var(--success)' : 'var(--danger)' }}
+            title={isConnected ? t('activity.connected') : t('activity.disconnected')}
           />
         </div>
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center gap-1.5 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+          className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-lg hover:bg-[var(--bg-elevated)]"
           title={isPaused ? t('activity.resume') : t('activity.pause')}
         >
           {isPaused ? (
@@ -107,28 +103,27 @@ export default function ActivityFeed({ className = '' }: ActivityFeedProps) {
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
-            <p className="text-sm text-text-secondary">{t('activity.empty')}</p>
+            <p className="text-sm text-[var(--text-muted)]">{t('activity.empty')}</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {logs.map((log) => (
               <button
                 key={log.id}
-                onClick={() =>
-                  navigate(`/dashboard/webhooks/${log.webhook_id}`)
-                }
-                className={`w-full text-left px-4 py-3 transition-all duration-300 hover:bg-elevated ${
+                onClick={() => navigate(`/dashboard/webhooks/${log.webhook_id}`)}
+                className={`w-full text-left px-4 py-3 transition-all duration-200 hover:bg-[var(--bg-elevated)] ${
                   log.isNew ? 'animate-fade-in-slide' : ''
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-semibold text-text-primary truncate pr-2">
+                  <span className="text-sm font-semibold text-[var(--text-primary)] truncate pr-2">
                     {log.webhook_name}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <TypeBadge type={log.type} />
                     {log.source && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>
                         {log.source}
                       </span>
                     )}
@@ -136,10 +131,10 @@ export default function ActivityFeed({ className = '' }: ActivityFeedProps) {
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-secondary font-mono">
+                  <span className="text-xs text-[var(--text-muted)] font-mono">
                     {log.ip_address || '-'}
                   </span>
-                  <span className="text-xs text-text-secondary">
+                  <span className="text-xs text-[var(--text-muted)]">
                     {getRelativeTime(log.created_at)}
                   </span>
                 </div>

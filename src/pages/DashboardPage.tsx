@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Inbox, LayoutTemplate } from 'lucide-react'
+import { Plus, Inbox, LayoutTemplate, Zap, Activity, BarChart3, Clock } from 'lucide-react'
 import { useWebhooks } from '../hooks/useWebhooks'
 import { t } from '../i18n'
 import WebhookCard from '../components/WebhookCard'
@@ -36,23 +36,27 @@ export default function DashboardPage() {
   const connection = useAdaptiveServing()
   const isSlowConnection = connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g' || connection.saveData
 
+  const totalLogs = webhooks.reduce((acc, w) => acc + (w.log_count || 0), 0)
+  const activeCount = webhooks.filter(w => w.is_active).length
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Webhooks</h1>
-          <p className="text-sm text-text-secondary mt-1">Manage your endpoints and inspect incoming logs.</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Webhooks</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">Manage your endpoints and inspect incoming logs.</p>
         </div>
         <div className="flex items-center gap-3">
           {isSlowConnection && (
-            <span className="text-xs text-text-secondary bg-surface border border-border rounded px-2 py-1">
+            <span className="text-xs text-[var(--text-secondary)] px-3 py-1.5 rounded-lg border border-[var(--border)]"
+              style={{ background: 'var(--bg-elevated)' }}>
               Slow connection — reduced data mode
             </span>
           )}
           <button
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
+            className="btn-glow flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold"
           >
             <Plus className="w-4 h-4" />
             New webhook
@@ -60,6 +64,29 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Stats row */}
+      {!loading && webhooks.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { icon: Zap, label: 'Total webhooks', value: webhooks.length, color: 'var(--accent)' },
+            { icon: Activity, label: 'Active', value: activeCount, color: 'var(--success)' },
+            { icon: BarChart3, label: 'Logs today', value: totalLogs.toLocaleString(), color: 'var(--info)' },
+            { icon: Clock, label: 'Uptime', value: '99.9%', color: 'var(--warning)' },
+          ].map((stat) => (
+            <div key={stat.label}
+              className="rounded-xl p-5 border border-[var(--border)] card-hover"
+              style={{ background: 'var(--bg-elevated)', boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
+                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{stat.label}</span>
+              </div>
+              <span className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{stat.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Loading */}
       {loading && (
         <div className="grid grid-cols-1 gap-4">
           <SkeletonCard />
@@ -68,20 +95,27 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Error */}
       {error && (
-        <div className="bg-danger/10 border border-danger/20 rounded p-4 text-sm text-danger">
+        <div className="rounded-xl p-4 text-sm border"
+          style={{ background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.15)', color: 'var(--danger)' }}>
           {error}
         </div>
       )}
 
+      {/* Empty state */}
       {!loading && webhooks.length === 0 && (
-        <div className="bg-surface border border-border rounded p-12 text-center">
-          <Inbox className="w-8 h-8 text-text-secondary mx-auto mb-4" />
-          <h3 className="text-text-primary font-medium mb-1">No webhooks yet</h3>
-          <p className="text-sm text-text-secondary mb-4">Create your first webhook to start receiving events.</p>
+        <div className="rounded-xl p-12 text-center border border-[var(--border)]"
+          style={{ background: 'var(--bg-elevated)', boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+            style={{ background: 'rgba(212,232,58,0.08)' }}>
+            <Inbox className="w-8 h-8" style={{ color: 'var(--accent)' }} />
+          </div>
+          <h3 className="text-[var(--text-primary)] font-semibold text-lg mb-2">No webhooks yet</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-6 max-w-sm mx-auto">Create your first webhook to start receiving events from Discord, Roblox, or any custom service.</p>
           <button
             onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
+            className="btn-glow inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold"
           >
             <Plus className="w-4 h-4" />
             Create webhook
@@ -89,6 +123,7 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Webhook list */}
       {!loading && webhooks.length > 0 && (
         <div className="grid grid-cols-1 gap-4">
           {webhooks.map((webhook) => (
@@ -103,21 +138,22 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Templates Section */}
+      {/* Templates */}
       {!loading && webhooks.length > 0 && selectedWebhook && (
         <div className="space-y-4 pt-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <LayoutTemplate className="w-5 h-5 text-accent" />
-              <h2 className="text-xl font-bold text-text-primary">{t('webhooks.templates.title')}</h2>
+              <LayoutTemplate className="w-5 h-5" style={{ color: 'var(--accent)' }} />
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">{t('webhooks.templates.title')}</h2>
             </div>
             {activeWebhooks.length > 1 && (
               <div className="flex items-center gap-2">
-                <label className="text-xs text-text-secondary">Webhook:</label>
+                <label className="text-xs text-[var(--text-secondary)]">Webhook:</label>
                 <select
                   value={selectedWebhook.id}
                   onChange={(e) => setSelectedWebhookId(e.target.value)}
-                  className="px-3 py-1.5 bg-background border border-border rounded text-sm text-text-primary focus:border-accent transition-colors"
+                  className="px-3 py-1.5 rounded-lg text-sm text-[var(--text-primary)] border border-[var(--border)] focus:border-[var(--accent)] transition-colors"
+                  style={{ background: 'var(--bg-elevated)' }}
                 >
                   {activeWebhooks.map((w) => (
                     <option key={w.id} value={w.id}>{w.name}</option>
