@@ -35,32 +35,47 @@ export function getTrustedIp(req: any): string | null {
   return String(raw).split(',')[0].trim()
 }
 
-// ─── SSE Short-Lived Token ───
-const SSE_TOKENS = new Map<string, { userId: string; webhookId: string; expiresAt: number }>()
+// ─── SSE Short-Lived Token (stateless, signed) ───
 const SSE_TOKEN_LIFETIME_MS = 5 * 60 * 1000 // 5 minutes
 
+function getSseSecret(): string {
+  return process.env.JWT_SECRET || process.env.WEBHOOK_SECRET_SALT || 'fallback-sse-secret-change-me'
+}
+
+function signPayload(payload: string): string {
+  return crypto.createHmac('sha256', getSseSecret()).update(payload).digest('hex')
+}
+
 export function generateSseToken(userId: string, webhookId: string): string {
-  const token = crypto.randomBytes(32).toString('hex')
   const expiresAt = Date.now() + SSE_TOKEN_LIFETIME_MS
-  SSE_TOKENS.set(token, { userId, webhookId, expiresAt })
-  // Cleanup old tokens every generation (lazy)
-  const now = Date.now()
-  for (const [k, v] of SSE_TOKENS) {
-    if (v.expiresAt < now) SSE_TOKENS.delete(k)
-  }
-  return token
+  const payload = `${userId}:${webhookId}:${expiresAt}`
+  const signature = signPayload(payload)
+  return `${Buffer.from(payload).toString('base64url')}.${signature}`
 }
 
 export function validateSseToken(token: string): { userId: string; webhookId: string } | null {
-  const entry = SSE_TOKENS.get(token)
-  if (!entry) return null
-  if (entry.expiresAt < Date.now()) {
-    SSE_TOKENS.delete(token)
+  const parts = token.split('.')
+  if (parts.length !== 2) return null
+
+  const [payloadB64, signature] = parts
+  let payload: string
+  try {
+    payload = Buffer.from(payloadB64, 'base64url').toString('utf-8')
+  } catch {
     return null
   }
-  // Single-use: delete after validation
-  SSE_TOKENS.delete(token)
-  return { userId: entry.userId, webhookId: entry.webhookId }
+
+  const expectedSig = signPayload(payload)
+  if (signature.length !== expectedSig.length) return null
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) return null
+
+  const [userId, webhookId, expiresAtStr] = payload.split(':')
+  if (!userId || !webhookId || !expiresAtStr) return null
+
+  const expiresAt = parseInt(expiresAtStr, 10)
+  if (isNaN(expiresAt) || expiresAt < Date.now()) return null
+
+  return { userId, webhookId }
 }
 
 // ─── Brute-Force Limiter (in-memory) ───
