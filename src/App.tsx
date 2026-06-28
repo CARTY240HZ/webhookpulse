@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useTheme, setTheme } from './hooks/useTheme'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
+import ScrollToTop from './components/ScrollToTop'
 
 // Lazy load non-critical routes for code splitting
 const LandingPage = lazy(() => import('./pages/LandingPage'))
@@ -51,6 +52,7 @@ function AppRoutes() {
 
   return (
     <Suspense fallback={<PageSkeleton />}>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage />} />
