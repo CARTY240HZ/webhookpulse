@@ -77,7 +77,8 @@ export default async function handler(req: any, res: any) {
         }
       })
 
-      return setPrivateCache(res).status(200).json({ webhooks: enriched })
+      setPrivateCache(res)
+      return res.status(200).json({ webhooks: enriched })
     }
 
     if (req.method === 'POST') {

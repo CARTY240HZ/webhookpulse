@@ -105,7 +105,8 @@ export default async function handler(req: any, res: any) {
       }
 
       await logAuditFromRequest(req, user.id, 'IP_RULE_ADDED', { webhook_id: webhookId, rule })
-        return setPrivateCache(res).status(201).json({ rule })
+        setPrivateCache(res)
+        return res.status(201).json({ rule })
     }
 
     if (req.method === 'DELETE') {

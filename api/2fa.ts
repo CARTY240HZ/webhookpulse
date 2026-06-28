@@ -60,7 +60,8 @@ export default async function handler(req: any, res: any) {
         })
       }
 
-      return setPrivateCache(res).status(200).json({
+      setPrivateCache(res)
+      return res.status(200).json({
         success: true,
         message: 'Verification code sent',
       })
@@ -120,7 +121,8 @@ export default async function handler(req: any, res: any) {
       }
 
       await logAuditFromRequest(req, user.id, '2FA_ENABLED')
-        return setPrivateCache(res).status(200).json({
+        setPrivateCache(res)
+        return res.status(200).json({
         success: true,
         message: 'Phone verified. Two-factor authentication is now active.',
       })

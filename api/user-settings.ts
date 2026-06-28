@@ -123,7 +123,8 @@ export default async function handler(req: any, res: any) {
           captureException(error)
           return apiError(res, 500, 'PROFILE_UPDATE_FAILED')
         }
-        return setPrivateCache(res).status(200).json({ success: true })
+        setPrivateCache(res)
+        return res.status(200).json({ success: true })
       }
 
       if (action === 'change_email') {
