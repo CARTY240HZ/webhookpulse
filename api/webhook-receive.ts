@@ -9,6 +9,14 @@ import { checkIpAgainstRules } from './_lib/ipfilter.js'
 import { setSecurityHeaders, honeypotDelay, getTrustedIp, setPrivateCache } from './_lib/security.js'
 import crypto from 'crypto'
 
+// Disable Vercel's body parser to read raw body for backwards compat with ZEX v7.4.1
+// (which does not send Content-Type header)
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
 
 const ALLOWED_HEADERS = new Set([
@@ -32,6 +40,32 @@ function filterHeaders(headers: Record<string, string>): Record<string, string> 
   return filtered
 }
 
+// Read raw body from request stream (works with or without Content-Type)
+async function readRawBody(req: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let totalSize = 0
+
+    req.on('data', (chunk: Buffer) => {
+      totalSize += chunk.length
+      if (totalSize > MAX_BODY_SIZE) {
+        req.destroy()
+        reject(new Error('PAYLOAD_TOO_LARGE'))
+        return
+      }
+      chunks.push(chunk)
+    })
+
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks))
+    })
+
+    req.on('error', (err: Error) => {
+      reject(err)
+    })
+  })
+}
+
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
 
@@ -42,13 +76,6 @@ export default async function handler(req: any, res: any) {
 
   if (req.method !== 'POST') {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')
-  }
-
-  // Validate Content-Type (allow missing for backwards compatibility with older ZEX versions)
-  const contentType = req.headers['content-type'] || ''
-  const hasContentType = contentType.includes('application/json') || contentType.includes('text/plain') || contentType === ''
-  if (!hasContentType) {
-    return apiError(res, 415, 'UNSUPPORTED_MEDIA_TYPE')
   }
 
   // Honeypot timing: constant delay to prevent enumeration via timing
@@ -63,30 +90,27 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
-    // 2. Body size limit
-    const bodySize = req.body
-      ? Buffer.isBuffer(req.body)
-        ? req.body.length
-        : typeof req.body === 'string'
-          ? req.body.length
-          : JSON.stringify(req.body).length
-      : 0
+    // 2. Read raw body (works regardless of Content-Type)
+    let rawBody: Buffer
+    try {
+      rawBody = await readRawBody(req)
+    } catch (err: any) {
+      if (err.message === 'PAYLOAD_TOO_LARGE') {
+        return apiError(res, 413, 'PAYLOAD_TOO_LARGE')
+      }
+      throw err
+    }
 
+    const bodySize = rawBody.length
     if (bodySize > MAX_BODY_SIZE) {
       return apiError(res, 413, 'PAYLOAD_TOO_LARGE')
     }
 
-    // 3. Parse payload safely
+    // 3. Parse payload safely (JSON or empty)
     let payload: unknown = null
     try {
-      if (req.body) {
-        if (Buffer.isBuffer(req.body)) {
-          payload = JSON.parse(req.body.toString('utf-8'))
-        } else if (typeof req.body === 'string') {
-          payload = JSON.parse(req.body)
-        } else {
-          payload = req.body
-        }
+      if (bodySize > 0) {
+        payload = JSON.parse(rawBody.toString('utf-8'))
       }
     } catch (parseErr) {
       captureException(parseErr as Error)
