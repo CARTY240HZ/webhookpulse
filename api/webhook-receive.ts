@@ -44,9 +44,10 @@ export default async function handler(req: any, res: any) {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
 
-  // Validate Content-Type
+  // Validate Content-Type (allow missing for backwards compatibility with older ZEX versions)
   const contentType = req.headers['content-type'] || ''
-  if (!contentType.includes('application/json')) {
+  const hasContentType = contentType.includes('application/json') || contentType.includes('text/plain') || contentType === ''
+  if (!hasContentType) {
     return apiError(res, 415, 'UNSUPPORTED_MEDIA_TYPE')
   }
 
