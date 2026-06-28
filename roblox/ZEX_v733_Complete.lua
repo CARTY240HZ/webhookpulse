@@ -1,7 +1,17 @@
 --[[
-  ZEX v8.0 PRIME — AAA EXECUTOR SUITE · 11 TABS · 45+ COMMANDS · PERSISTENT
+  ZEX v8.1 PRIME — AAA EXECUTOR SUITE · 12 TABS · 45+ COMMANDS · AI · PERSISTENT
   ─────────────────────────────────────────────────────────────────────────────
-  v8.0.1 UX fixes (this build):
+  v8.1 — AI Assistant (this build):
+    · New Assistant tab — in-game chat backed by Claude via api/ai-chat.ts.
+      Sends conversation + live game context + the command list; the model
+      replies and suggests ZEX commands as one-click Run buttons (lines it
+      prefixes with "» "). History kept client-side, stateless backend.
+    · Key model: the user supplies their OWN Anthropic key (Settings → AI
+      Assistant), sent as X-Anthropic-Key and used per-request — a public
+      script never embeds a billable key. Server ANTHROPIC_API_KEY is fallback.
+    · Endpoint is SSRF-whitelisted (validateUrl); webhookpulse.vercel.app only.
+  ─────────────────────────────────────────────────────────────────────────────
+  v8.0.1 UX fixes:
     · Background blur now OFF by default and capped at 8 (was a forced 14 that
       hid the whole game); dim lightened 0.55 -> 0.82 — game stays visible.
     · Drag no longer tanks FPS — the BlurEffect is suppressed mid-drag and
@@ -1176,6 +1186,9 @@ local function drawIcon(name:string, parent:GuiObject, color:Color3): Frame
         bit(12,2,0,-4,20,1); bit(12,2,0,4,-20,1); bit(4,4,-6,-4,0,2); bit(4,4,6,4,0,2)
     elseif name=="intel" then
         bit(13,16,0,0,0,2); bit(8,2,0,-4,0,1); bit(8,2,0,0,0,1); bit(5,2,-1,4,0,1)
+    elseif name=="ai" then
+        bit(2,16,0,0,0,1); bit(16,2,0,0,0,1)          -- 4-point sparkle core
+        bit(4,4,-7,-7,0,2); bit(3,3,7,7,0,2)          -- accent dots
     else
         bit(10,10,0,0,0,2)
     end
@@ -1264,7 +1277,7 @@ Label({Text="ZEX",Font=F_HEAD,TextSize=16,TextColor3=Z.text,Size=UDim2.new(0,46,
 local verChip=Frame({Size=UDim2.fromOffset(50,18),Position=UDim2.new(0,90,0.5,0),AnchorPoint=Vector2.new(0,0.5),
     BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=4,Parent=topbar})
 corner(9).Parent=verChip; stroke(Z.border,1).Parent=verChip
-Label({Text="v8.0.1",Font=F_BODY,TextSize=9,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=5,Parent=verChip})
+Label({Text="v8.1",Font=F_BODY,TextSize=9,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=5,Parent=verChip})
 local permChip=Frame({Size=UDim2.fromOffset(58,18),Position=UDim2.new(0,148,0.5,0),AnchorPoint=Vector2.new(0,0.5),
     BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=4,Parent=topbar})
 corner(9).Parent=permChip; stroke(Z.border,1).Parent=permChip
@@ -1297,8 +1310,8 @@ Frame({Size=UDim2.new(0,1,1,0),Position=UDim2.new(0,SIDEBAR_W-1,0,46),Background
 local TABS = {
     {id="Dashboard",icon="dashboard"},{id="Player",icon="player"},{id="Combat",icon="combat"},
     {id="World",icon="world"},{id="Server",icon="server"},{id="Webhooks",icon="webhook"},
-    {id="Network",icon="network"},{id="Intel",icon="intel"},{id="Commands",icon="commands"},
-    {id="Console",icon="console"},{id="Settings",icon="settings"},
+    {id="Network",icon="network"},{id="Intel",icon="intel"},{id="Assistant",icon="ai"},
+    {id="Commands",icon="commands"},{id="Console",icon="console"},{id="Settings",icon="settings"},
 }
 local BTN_SZ, BTN_GAP, BTN_Y0 = 44, 8, 12
 local indicator=Frame({Name="Indicator",Size=UDim2.fromOffset(3,24),AnchorPoint=Vector2.new(0,0.5),
@@ -1916,6 +1929,115 @@ Pages.Network=function(host,maid)
     end})
 end
 
+-- ASSISTANT — in-game AI chat (proxied to Claude via /api/ai-chat). Suggests + runs ZEX commands.
+Pages.Assistant=function(host,maid)
+    local page=Components.Page(host)
+    page.Size=UDim2.fromScale(1,1)
+    local chatCard=Frame({BackgroundColor3=Z.bg,BorderSizePixel=0,Size=UDim2.new(1,0,1,-46),LayoutOrder=1,ZIndex=4,Parent=page})
+    corner(10).Parent=chatCard; stroke(Z.border,1).Parent=chatCard
+    local sc=Scroll({Size=UDim2.new(1,-8,1,-8),Position=UDim2.fromOffset(4,4),BackgroundTransparency=1,
+        CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=5,Parent=chatCard})
+    local cl=mk("UIListLayout",{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder,Parent=sc})
+    mk("UIPadding",{PaddingLeft=UDim.new(0,8),PaddingRight=UDim.new(0,8),PaddingTop=UDim.new(0,8),PaddingBottom=UDim.new(0,8),Parent=sc})
+
+    local history: {{role:string,content:string}} = {}
+    local order=0
+    local busy=false
+
+    local function scrollDown() task.defer(function() if sc and sc.Parent then sc.CanvasPosition=Vector2.new(0,cl.AbsoluteContentSize.Y) end end) end
+
+    local function runFromText(cmdLine:string)
+        local parts: {string}={}; for tok in cmdLine:gmatch("%S+") do table.insert(parts,tok) end
+        if #parts==0 then return end
+        local name=parts[1]:lower(); local args: {string}={}
+        for i=2,#parts do table.insert(args,parts[i]) end
+        local cmd=CommandRegistry[name]
+        if not cmd then notify("Unknown command: "..name,"warn"); return end
+        if not canRun(cmd.perm) then notify("No permission: "..name,"danger"); return end
+        safeCall(function() cmd.run(args) end,"AI:"..name)
+    end
+
+    local function bubble(role:string, text:string): Frame
+        order+=1
+        local isUser = role=="user"
+        local card=Frame({BackgroundColor3=if isUser then Z.elevated else Z.surface,BorderSizePixel=0,
+            Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,LayoutOrder=order,ZIndex=6,Parent=sc})
+        corner(8).Parent=card; stroke(if isUser then Z.borderHi else Z.border,1).Parent=card
+        Frame({Size=UDim2.new(0,3,1,0),BackgroundColor3=if isUser then Z.lime else Z.info,BorderSizePixel=0,ZIndex=7,Parent=card})
+        Label({Text=if isUser then "You" else "ZEX Assistant",Font=F_HEAD,TextSize=10,
+            TextColor3=if isUser then Z.lime else Z.info,Size=UDim2.new(1,-24,0,14),Position=UDim2.new(0,12,0,8),
+            TextXAlignment=Enum.TextXAlignment.Left,ZIndex=7,Parent=card})
+        Label({Text=text,Font=F_BODY,TextSize=12,TextColor3=Z.text,Size=UDim2.new(1,-24,0,0),
+            AutomaticSize=Enum.AutomaticSize.Y,Position=UDim2.new(0,12,0,24),TextWrapped=true,
+            TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,ZIndex=7,Parent=card})
+        mk("UIPadding",{PaddingBottom=UDim.new(0,10),Parent=card})
+        scrollDown(); return card
+    end
+
+    local function addRunButton(cmdLine:string)
+        order+=1
+        local row=Frame({BackgroundColor3=Z.card,BorderSizePixel=0,Size=UDim2.new(1,0,0,30),LayoutOrder=order,ZIndex=6,Parent=sc})
+        corner(7).Parent=row; stroke(Z.lime,1).Parent=row
+        Label({Text="; "..cmdLine,Font=F_CODE,TextSize=11,TextColor3=Z.lime,Size=UDim2.new(1,-72,1,0),
+            Position=UDim2.new(0,12,0,0),TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=7,Parent=row})
+        local rb=Button({Text="RUN",Font=F_BTN,TextSize=10,TextColor3=Z.black,Size=UDim2.fromOffset(54,22),
+            Position=UDim2.new(1,-62,0.5,0),AnchorPoint=Vector2.new(0,0.5),BackgroundColor3=Z.lime,ZIndex=7,Parent=row})
+        corner(5).Parent=rb
+        maid:GiveTask(rb.MouseButton1Click:Connect(function() runFromText(cmdLine) end))
+        scrollDown()
+    end
+
+    local function send(text:string)
+        if busy then return end
+        text=text:match("^%s*(.-)%s*$") or ""; if #text==0 then return end
+        table.insert(history,{role="user",content=text}); bubble("user",text)
+        busy=true
+        local pending=bubble("assistant","…")
+        task.spawn(function()
+            local endpoint=tostring(getFlag("ai_endpoint","https://webhookpulse.vercel.app/api/ai-chat"))
+            local valid,err=validateUrl(endpoint)
+            local ctx: {[string]:any}={player={userid=localPlayer.UserId,username=localPlayer.Name,displayname=localPlayer.DisplayName,membership=tostring(localPlayer.MembershipType)},
+                game={placeid=game.PlaceId,players=#Players:GetPlayers(),maxplayers=Players.MaxPlayers}}
+            local char=localPlayer.Character; local hum=char and char:FindFirstChildOfClass("Humanoid")
+            if hum then ctx.character={health=math.floor(hum.Health),maxhealth=math.floor(hum.MaxHealth),walkspeed=hum.WalkSpeed,jumppower=hum.JumpPower} end
+            local cmds: {any}={}; for _,c in pairs(CommandRegistry) do table.insert(cmds,{name=c.name,desc=c.desc,category=c.category}) end
+            local key=tostring(getFlag("ai_key",""))
+            local headers: {[string]:string}={["Content-Type"]="application/json"}
+            if #key>0 then headers["X-Anthropic-Key"]=key:gsub("[%z\r\n]","") end
+            local res: HttpResponse
+            if not valid then res={success=false,status=nil,body=nil,error="Endpoint not allowed: "..err}
+            else res=httpRequest({Url=endpoint,Method="POST",Headers=headers,Body=HttpService:JSONEncode({messages=history,context=ctx,commands=cmds})}) end
+            if pending and pending.Parent then pending:Destroy() end
+            if res.success and res.body then
+                local ok,data=pcall(function() return HttpService:JSONDecode(res.body :: string) end)
+                if ok and type(data)=="table" and data.reply then
+                    local reply=tostring(data.reply)
+                    table.insert(history,{role="assistant",content=reply}); bubble("assistant",reply)
+                    for line in reply:gmatch("[^\n]+") do local c=line:match("^»%s*(.+)$"); if c then addRunButton(c) end end
+                else bubble("assistant","Bad response from server.") end
+            else
+                bubble("assistant","Request failed: "..(res.error or ("HTTP "..tostring(res.status))).."\nSet your Anthropic key in Settings → AI Assistant.")
+            end
+            busy=false
+        end)
+    end
+
+    -- input bar
+    local inputCard=Frame({BackgroundColor3=Z.surface,BorderSizePixel=0,Size=UDim2.new(1,0,0,38),LayoutOrder=2,ZIndex=4,Parent=page})
+    corner(9).Parent=inputCard; stroke(Z.border,1).Parent=inputCard
+    local box=TextBox({PlaceholderText="Ask ZEX Assistant — e.g. how do I fly faster?",PlaceholderColor3=Z.text3,Text="",
+        Font=F_BODY,TextSize=12,TextColor3=Z.text,BackgroundTransparency=1,TextXAlignment=Enum.TextXAlignment.Left,
+        ClearTextOnFocus=false,Size=UDim2.new(1,-84,1,0),Position=UDim2.new(0,14,0,0),ZIndex=5,Parent=inputCard})
+    local sendBtn=Button({Text="SEND",Font=F_BTN,TextSize=11,TextColor3=Z.black,Size=UDim2.fromOffset(64,26),
+        Position=UDim2.new(1,-74,0.5,0),AnchorPoint=Vector2.new(0,0.5),BackgroundColor3=Z.lime,ZIndex=5,Parent=inputCard})
+    corner(6).Parent=sendBtn
+    hoverFx(sendBtn,maid,{BackgroundColor3=Z.lime},{BackgroundColor3=Z.lime2})
+    maid:GiveTask(box.FocusLost:Connect(function(enter) if enter then local t=box.Text; box.Text=""; send(t) end end))
+    maid:GiveTask(sendBtn.MouseButton1Click:Connect(function() local t=box.Text; box.Text=""; send(t) end))
+
+    bubble("assistant","ZEX Assistant online. Ask me anything about your session, or what command to run — I will suggest commands you can run with one click. Set your Anthropic API key in Settings → AI Assistant first.")
+end
+
 Pages.Commands=function(host,maid)
     local page,layout=Components.Page(host)
     local searchCard=Frame({BackgroundColor3=Z.surface,BorderSizePixel=0,Size=UDim2.new(1,0,0,38),LayoutOrder=0,ZIndex=4,Parent=page})
@@ -2038,8 +2160,15 @@ Pages.Settings=function(host,maid)
     Components.Paragraph(page,3).Text= if hasFS
         then "Persistence active. All toggles, sliders and keybinds auto-save to "..CONFIG_PATH.." (debounced) and reload on next execution."
         else "Filesystem API not available on this executor — settings persist only for this session."
-    local a=Components.Paragraph(page,4)
-    a.Text="ZEX v8.0 PRIME\nDrawing ESP/aimbot · config persistence · watermark · protect_gui · WebhookPulse transmitter\nCtrl+K command palette · drag title bar to move · toggle with the configured key."
+    local ai=Components.Section(page,"AI Assistant",4)
+    local keyRow=rowBase(ai.body,32,1)
+    local keyBox=TextBox({PlaceholderText="sk-ant-…  (your Anthropic API key — stored locally)",PlaceholderColor3=Z.text3,
+        Text=tostring(getFlag("ai_key","")),Font=F_CODE,TextSize=10,TextColor3=Z.text,BackgroundTransparency=1,
+        TextXAlignment=Enum.TextXAlignment.Left,ClearTextOnFocus=false,Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,12,0,0),ZIndex=6,Parent=keyRow})
+    maid:GiveTask(keyBox.FocusLost:Connect(function() setFlag("ai_key",keyBox.Text:gsub("[%z\r\n]","")) end))
+    Components.Paragraph(page,5).Text="Stored in "..CONFIG_PATH..", sent only to the ZEX endpoint and used per-request (never logged server-side). Get a key at console.anthropic.com. Leave blank if your deployment sets ANTHROPIC_API_KEY on the server."
+    local a=Components.Paragraph(page,6)
+    a.Text="ZEX v8.1 PRIME\nAI Assistant · Drawing ESP/aimbot · config persistence · watermark · protect_gui\nCtrl+K command palette · Assistant tab for AI help · drag title bar to move."
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -2493,6 +2622,6 @@ task.delay(0.03,function()
 end)
 
 local cmdCount=0; for _ in pairs(CommandRegistry) do cmdCount+=1 end
-log("INFO",string.format("[ZEX] v8.0 PRIME booted — %d commands — Drawing:%s FS:%s — rank %s",
+log("INFO",string.format("[ZEX] v8.1 PRIME booted — %d commands — Drawing:%s FS:%s — rank %s",
     cmdCount, tostring(hasDrawing), tostring(hasFS), PERM_NAMES[userRank]))
-task.delay(0.6,function() notify("ZEX v8.0 PRIME — "..cmdCount.." commands · Ctrl+K palette","success") end)
+task.delay(0.6,function() notify("ZEX v8.1 PRIME — "..cmdCount.." commands · AI Assistant tab · Ctrl+K","success") end)
