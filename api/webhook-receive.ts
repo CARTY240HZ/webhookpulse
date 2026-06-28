@@ -3,19 +3,10 @@ import { getCorsHeaders } from './_lib/cors.js'
 import { isValidPath } from './_lib/validate.js'
 import { checkRateLimit } from './_lib/ratelimit.js'
 import { apiError } from './_lib/errors.js'
-import { verifySecret } from './_lib/hmac.js'
 import { captureException } from './_lib/sentry.js'
 import { checkIpAgainstRules } from './_lib/ipfilter.js'
 import { setSecurityHeaders, honeypotDelay, getTrustedIp, setPrivateCache } from './_lib/security.js'
 import crypto from 'crypto'
-
-// Disable Vercel's body parser to read raw body for backwards compat with ZEX v7.4.1
-// (which does not send Content-Type header)
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
 
 const MAX_BODY_SIZE = 256 * 1024 // 256 KB
 
@@ -38,32 +29,6 @@ function filterHeaders(headers: Record<string, string>): Record<string, string> 
     }
   }
   return filtered
-}
-
-// Read raw body from request stream (works with or without Content-Type)
-async function readRawBody(req: any): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    let totalSize = 0
-
-    req.on('data', (chunk: Buffer) => {
-      totalSize += chunk.length
-      if (totalSize > MAX_BODY_SIZE) {
-        req.destroy()
-        reject(new Error('PAYLOAD_TOO_LARGE'))
-        return
-      }
-      chunks.push(chunk)
-    })
-
-    req.on('end', () => {
-      resolve(Buffer.concat(chunks))
-    })
-
-    req.on('error', (err: Error) => {
-      reject(err)
-    })
-  })
 }
 
 export default async function handler(req: any, res: any) {
@@ -90,15 +55,18 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
-    // 2. Read raw body (works regardless of Content-Type)
-    let rawBody: Buffer
-    try {
-      rawBody = await readRawBody(req)
-    } catch (err: any) {
-      if (err.message === 'PAYLOAD_TOO_LARGE') {
-        return apiError(res, 413, 'PAYLOAD_TOO_LARGE')
+    // 2. Body handling: Vercel parses body automatically. If Content-Type is missing,
+    // req.body may be a raw string or Buffer. Try to parse JSON from it.
+    let rawBody: string = ''
+    if (req.body) {
+      if (Buffer.isBuffer(req.body)) {
+        rawBody = req.body.toString('utf-8')
+      } else if (typeof req.body === 'string') {
+        rawBody = req.body
+      } else if (typeof req.body === 'object') {
+        // Already parsed by Vercel body parser
+        rawBody = JSON.stringify(req.body)
       }
-      throw err
     }
 
     const bodySize = rawBody.length
@@ -106,11 +74,11 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 413, 'PAYLOAD_TOO_LARGE')
     }
 
-    // 3. Parse payload safely (JSON or empty)
+    // 3. Parse payload safely
     let payload: unknown = null
     try {
       if (bodySize > 0) {
-        payload = JSON.parse(rawBody.toString('utf-8'))
+        payload = JSON.parse(rawBody)
       }
     } catch (parseErr) {
       captureException(parseErr as Error)
@@ -120,7 +88,7 @@ export default async function handler(req: any, res: any) {
     // 4. Extract IP (trust Vercel's forwarded header ONLY)
     const ipAddress = getTrustedIp(req)
 
-    // 5. Find webhook by path (indexed query, not in-memory filter)
+    // 5. Find webhook by path
     const pathStr = String(path)
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
@@ -138,7 +106,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
-    // 6. IP filtering (before secret check — prevents secret probing from blocked IPs)
+    // 6. IP filtering
     if (ipAddress) {
       const { data: ipRules } = await supabase
         .from('ip_rules')
@@ -151,7 +119,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 7. Check secret (legacy: direct comparison)
+    // 7. Check secret (legacy direct comparison)
     const providedSecret = req.headers['x-webhook-secret'] || ''
     let secretValid = false
     
@@ -161,7 +129,6 @@ export default async function handler(req: any, res: any) {
         Buffer.from(String(webhook.secret))
       )
     } else {
-      // No secret configured — allow all
       secretValid = true
     }
     
@@ -169,13 +136,13 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ received: true })
     }
 
-    // Health-check probe: do NOT store log or apply rate limit
+    // Health-check probe
     const isHealthCheck = req.headers['x-health-check'] === 'true' || req.headers['X-Health-Check'] === 'true'
     if (isHealthCheck) {
       return res.status(200).json({ received: true, health_check: true })
     }
 
-    // 7. Rate limiting
+    // 8. Rate limiting
     if (ipAddress) {
       const allowed = await checkRateLimit(supabase, ipAddress)
       if (!allowed) {
@@ -183,7 +150,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 8. Store log (S4: filter headers)
+    // 9. Store log
     const filteredHeaders = filterHeaders(req.headers as Record<string, string>)
 
     let insertResult = await supabase
@@ -198,7 +165,6 @@ export default async function handler(req: any, res: any) {
       .single()
 
     if (insertResult.error && insertResult.error.code === '22P02') {
-      // 22P02 = invalid_text_representation (inet type error)
       insertResult = await supabase
         .from('webhook_logs')
         .insert({
