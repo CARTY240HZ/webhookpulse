@@ -1,10 +1,10 @@
 import crypto from 'crypto'
-import { getSupabase } from '../_lib/supabase.js'
-import { captureException } from '../_lib/sentry.js'
-import { checkIpAgainstRules } from '../_lib/ipfilter.js'
-import { isValidUUID, getQueryParamString } from '../_lib/validate.js'
-import { checkRateLimit } from '../_lib/ratelimit.js'
-import { verifyWebhookSecret } from '../_lib/hmac.js'
+import { getSupabase } from './_lib/supabase.js'
+import { captureException } from './_lib/sentry.js'
+import { checkIpAgainstRules } from './_lib/ipfilter.js'
+import { isValidUUID, getQueryParamString } from './_lib/validate.js'
+import { checkRateLimit } from './_lib/ratelimit.js'
+import { verifyWebhookSecret } from './_lib/hmac.js'
 
 // ============================================================
 // DISCORD WEBHOOK DISPATCH — FLAT ROUTE
