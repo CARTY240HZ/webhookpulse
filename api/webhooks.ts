@@ -66,7 +66,7 @@ export default async function handler(req: any, res: any) {
         const secret = w.secret ? String(w.secret).trim() : ''
         const hasSecret = isDiscord && secret !== '' && secret !== 'null' && secret.length >= 32
         const discordUrl = hasSecret ? `${baseUrl}/api/webhooks/${w.id}/${secret}` : null
-        const nativeUrl = `${baseUrl}/api/webhook-receive?path=${w.url_path}`
+        const nativeUrl = isDiscord ? null : `${baseUrl}/api/webhook-receive?path=${w.url_path}`
         // Exclude plaintext secret from response — never send it after creation
         const { secret: _secret, ...rest } = w
         return {

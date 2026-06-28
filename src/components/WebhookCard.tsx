@@ -104,7 +104,9 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
           {!webhook.native_url && !webhook.discord_url && (
             <div className="flex items-center gap-2 rounded-lg px-3 py-2 border border-[var(--border)]"
               style={{ background: 'var(--bg)' }}>
-              <span className="text-sm text-[var(--text-muted)]">No URL available</span>
+              <span className="text-sm text-[var(--text-muted)]">
+                {webhook.type === 'discord' ? 'Discord URL was shown once during creation. Copy it immediately or create a new webhook if lost.' : 'No URL available'}
+              </span>
             </div>
           )}
         </div>
