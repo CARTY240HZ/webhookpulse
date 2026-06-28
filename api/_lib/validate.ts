@@ -44,6 +44,7 @@ export function getQueryParamInt(req: any, key: string, defaultVal: number): num
   const n = parseInt(val, 10)
   return isNaN(n) ? defaultVal : n
 }
+export function validateWebhookInput(name: string, description?: string): { ok: true } | { ok: false; code: string } {
   if (!name || name.trim().length === 0) {
     return { ok: false, code: 'NAME_REQUIRED' }
   }
