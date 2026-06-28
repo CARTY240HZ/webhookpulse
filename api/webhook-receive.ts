@@ -124,15 +124,19 @@ export default async function handler(req: any, res: any) {
     const providedSecret = req.headers['x-webhook-secret'] || ''
     log(`17. Secret check: provided=${!!providedSecret}, webhook_secret=${!!webhook.secret}`)
     let secretValid = false
-    if (webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null') {
-      try {
-        secretValid = crypto.timingSafeEqual(
-          Buffer.from(String(providedSecret)),
-          Buffer.from(String(webhook.secret))
-        )
-      } catch (err: any) {
-        log(`18. timingSafeEqual error: ${err.message}`)
+    const ws = String(webhook.secret || '')
+    const ps = String(providedSecret)
+    if (ws.trim() !== '' && ws.trim() !== 'null') {
+      // timingSafeEqual requires EXACT same length — compare length first
+      if (ps.length !== ws.length) {
         secretValid = false
+      } else {
+        try {
+          secretValid = crypto.timingSafeEqual(Buffer.from(ps), Buffer.from(ws))
+        } catch (err: any) {
+          log(`18. timingSafeEqual error: ${err.message}`)
+          secretValid = false
+        }
       }
     } else {
       secretValid = true
