@@ -89,7 +89,7 @@ export default async function handler(req: any, res: any) {
     log(`10. Querying webhooks for path: ${pathStr}`)
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, is_active, url_path')
+      .select('id, secret, secret_hash, is_active, url_path')
       .eq('url_path', pathStr)
       .single()
 
@@ -193,7 +193,8 @@ export default async function handler(req: any, res: any) {
     }
 
     log(`25. Success: logId=${insertResult.data?.id}`)
-    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id, ...(isDebug ? { debug: logs } : {}) })
+    setPrivateCache(res)
+    return res.status(200).json({ success: true, logId: insertResult.data.id, ...(isDebug ? { debug: logs } : {}) })
   } catch (err: any) {
     log(`ERROR: ${err.message}`)
     return apiError(res, 500, 'INTERNAL_ERROR')

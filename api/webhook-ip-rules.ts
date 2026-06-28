@@ -3,7 +3,7 @@ import { getCorsHeaders, setCorsHeaders } from './_lib/cors.js'
 import { requireAuth } from './_lib/auth.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { isValidIpOrCidr } from './_lib/ipfilter.js'
-import { setSecurityHeaders } from './_lib/security.js'
+import { setSecurityHeaders, setPrivateCache } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
 import { checkFixedWindowRateLimit } from './_lib/ratelimit.js'
 

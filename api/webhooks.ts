@@ -6,7 +6,7 @@ import { validateWebhookInput, clampString, isValidUUID } from './_lib/validate.
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { hashSecret, hashSecretBcrypt } from './_lib/hmac.js'
-import { setSecurityHeaders } from './_lib/security.js'
+import { setSecurityHeaders, setPrivateCache } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
 
 function generateSlug(name: string): string {

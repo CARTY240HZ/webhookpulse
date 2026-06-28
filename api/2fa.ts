@@ -5,7 +5,7 @@ import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
-import { setSecurityHeaders, checkBruteLimit, resetBruteLimit } from './_lib/security.js'
+import { setSecurityHeaders, checkBruteLimit, resetBruteLimit, setPrivateCache } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
 
 export default async function handler(req: any, res: any) {

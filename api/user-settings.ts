@@ -4,7 +4,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { createClient } from '@supabase/supabase-js'
-import { setSecurityHeaders, checkBruteLimit } from './_lib/security.js'
+import { setSecurityHeaders, checkBruteLimit, setPrivateCache } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
 
 export default async function handler(req: any, res: any) {
@@ -63,8 +63,8 @@ export default async function handler(req: any, res: any) {
         const { data: userData } = await supabase.auth.admin.getUserById(user.id)
         email = userData?.user?.email || ''
       } catch (e) {
-        // Fallback: email might be in the JWT payload
-        email = user.email || ''
+        // Fallback: email unknown
+        email = ''
       }
 
       return res.status(200).json({
