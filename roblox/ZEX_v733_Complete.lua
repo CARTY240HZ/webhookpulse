@@ -1,6 +1,16 @@
 --[[
   ZEX v8.0 PRIME — AAA EXECUTOR SUITE · 11 TABS · 45+ COMMANDS · PERSISTENT
   ─────────────────────────────────────────────────────────────────────────────
+  v8.0.1 UX fixes (this build):
+    · Background blur now OFF by default and capped at 8 (was a forced 14 that
+      hid the whole game); dim lightened 0.55 -> 0.82 — game stays visible.
+    · Drag no longer tanks FPS — the BlurEffect is suppressed mid-drag and
+      restored on release (it was the per-frame cost).
+    · Minimize restores correctly — restore now re-clamps the window into the
+      viewport, so a bar dragged while collapsed can no longer expand off-screen.
+    · Memory leak fixed — print/warn hooks are restored on teardown (the logger
+      closure + logs table used to live forever); activeTweens/logs cleared.
+  ─────────────────────────────────────────────────────────────────────────────
   v8.0 PRIME — system-tier upgrade (merges the v7.0 intelligence/webhook core
   with the v7.4.1 component GUI, plus four elite subsystems):
     · NEW  Config persistence — writefile/readfile flag store (ZEX/config.json),
@@ -1205,7 +1215,8 @@ if not screenGui then log("ERROR","[ZEX] ScreenGui failed"); return end
 local WIN_W, WIN_H = 760, 500
 
 -- background blur (executor-side BlurEffect on Lighting)
-local blurEnabled = getFlag("blur",true)==true
+local BLUR_SIZE = 8                                 -- subtle; game stays fully visible (was 14, way too strong)
+local blurEnabled = getFlag("blur",false)==true    -- OFF by default — elite menus float over a visible game
 local blur: BlurEffect = mk("BlurEffect",{Name="ZEX_Blur",Size=0,Parent=Lighting})
 rootMaid:GiveTask(blur)
 
@@ -1253,7 +1264,7 @@ Label({Text="ZEX",Font=F_HEAD,TextSize=16,TextColor3=Z.text,Size=UDim2.new(0,46,
 local verChip=Frame({Size=UDim2.fromOffset(50,18),Position=UDim2.new(0,90,0.5,0),AnchorPoint=Vector2.new(0,0.5),
     BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=4,Parent=topbar})
 corner(9).Parent=verChip; stroke(Z.border,1).Parent=verChip
-Label({Text="v8.0",Font=F_BODY,TextSize=9,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=5,Parent=verChip})
+Label({Text="v8.0.1",Font=F_BODY,TextSize=9,TextColor3=Z.lime,Size=UDim2.fromScale(1,1),ZIndex=5,Parent=verChip})
 local permChip=Frame({Size=UDim2.fromOffset(58,18),Position=UDim2.new(0,148,0.5,0),AnchorPoint=Vector2.new(0,0.5),
     BackgroundColor3=Z.elevated,BorderSizePixel=0,ZIndex=4,Parent=topbar})
 corner(9).Parent=permChip; stroke(Z.border,1).Parent=permChip
@@ -2002,7 +2013,7 @@ Pages.Settings=function(host,maid)
     local g=Components.Section(page,"General",1)
     Components.Keybind(g.body,maid,1,{Title="Toggle menu key",Get=function() return toggleKey end,Set=function(k) toggleKey=k; setFlag("toggle_key",k.Name); notify("Toggle key: "..k.Name) end})
     Components.Toggle(g.body,maid,2,{Title="Background blur",Get=function() return blurEnabled end,Toggle=function()
-        blurEnabled=not blurEnabled; setFlag("blur",blurEnabled); tween(blur,{Size=if blurEnabled then 14 else 0},SMOOTH)
+        blurEnabled=not blurEnabled; setFlag("blur",blurEnabled); tween(blur,{Size=if blurEnabled then BLUR_SIZE else 0},SMOOTH)
     end})
     Components.Slider(g.body,maid,3,{Title="UI Scale",Min=70,Max=120,Default=tonumber(getFlag("uiscale",100)) or 100,Suffix="%",Callback=function(v) uiScale.Scale=v/100; setFlag("uiscale",v) end})
     Components.Toggle(g.body,maid,4,{Title="Watermark (FPS/ping/clock)",Get=function() return getFlag("watermark",true)==true end,Toggle=function()
@@ -2294,6 +2305,11 @@ end))
 -- 25. DRAG · MINIMIZE · CLOSE
 -- ═══════════════════════════════════════════════════════════════════════════════
 
+local function viewport(): Vector2
+    local cam=Workspace.CurrentCamera
+    return if cam then cam.ViewportSize else Vector2.new(1280,720)
+end
+
 local dragMaid: Maid? = nil
 rootMaid:GiveTask(function() if dragMaid then dragMaid:Destroy(); dragMaid=nil end end)
 rootMaid:GiveTask(topbar.InputBegan:Connect(function(input:InputObject)
@@ -2302,24 +2318,39 @@ rootMaid:GiveTask(topbar.InputBegan:Connect(function(input:InputObject)
     local dt=input.UserInputType
     local start=Vector2.new(input.Position.X,input.Position.Y)
     local origin=holder.AbsolutePosition + holder.AbsoluteSize/2  -- center (AnchorPoint .5)
+    -- BlurEffect is the #1 cost when the window moves — kill it during the drag, restore after.
+    local blurWasOn = blurEnabled and blur.Size>0
+    if blurWasOn then tween(blur,{Size=0},FAST) end
     dragMaid:GiveTask(UserInputService.InputChanged:Connect(function(i2:InputObject)
         if i2.UserInputType~=Enum.UserInputType.MouseMovement and i2.UserInputType~=Enum.UserInputType.Touch then return end
         local delta=Vector2.new(i2.Position.X,i2.Position.Y)-start
-        local vp=Workspace.CurrentCamera.ViewportSize
-        local nx=math.clamp(origin.X+delta.X, holder.AbsoluteSize.X/2, vp.X-holder.AbsoluteSize.X/2)
-        local ny=math.clamp(origin.Y+delta.Y, holder.AbsoluteSize.Y/2, vp.Y-holder.AbsoluteSize.Y/2)
-        holder.Position=UDim2.fromOffset(nx,ny)
+        local vp=viewport()
+        local hw,hh=holder.AbsoluteSize.X/2, holder.AbsoluteSize.Y/2
+        holder.Position=UDim2.fromOffset(math.clamp(origin.X+delta.X,hw,vp.X-hw), math.clamp(origin.Y+delta.Y,hh,vp.Y-hh))
     end))
     dragMaid:GiveTask(UserInputService.InputEnded:Connect(function(i2:InputObject)
-        if i2.UserInputType==dt then if dragMaid then dragMaid:Destroy(); dragMaid=nil end end
+        if i2.UserInputType==dt then
+            if blurWasOn then tween(blur,{Size=BLUR_SIZE},SMOOTH) end
+            if dragMaid then dragMaid:Destroy(); dragMaid=nil end
+        end
     end))
 end))
 
+-- Minimize: collapse to the title bar and back. SMOOTH (no spring overshoot) and,
+-- critically, re-clamp on restore so a window dragged while collapsed cannot expand off-screen.
 local minimized=false
-rootMaid:GiveTask(minBtn.MouseButton1Click:Connect(function()
-    minimized=not minimized
-    tween(holder,{Size=UDim2.fromOffset(WIN_W, if minimized then 46 else WIN_H)},SPRING)
-end))
+local function clampHolder()
+    local vp=viewport()
+    local hw,hh=holder.AbsoluteSize.X/2, holder.AbsoluteSize.Y/2
+    local c=holder.AbsolutePosition+holder.AbsoluteSize/2
+    holder.Position=UDim2.fromOffset(math.clamp(c.X,hw,vp.X-hw), math.clamp(c.Y,hh,vp.Y-hh))
+end
+local function setMinimized(state:boolean)
+    minimized=state
+    tween(holder,{Size=UDim2.fromOffset(WIN_W, if state then 46 else WIN_H)},SMOOTH)
+    if not state then task.delay(0.32, function() if holder and holder.Parent then clampHolder() end end) end
+end
+rootMaid:GiveTask(minBtn.MouseButton1Click:Connect(function() setMinimized(not minimized) end))
 
 local function closeGui()
     tween(blur,{Size=0},SMOOTH)
@@ -2348,8 +2379,8 @@ local function setGuiVisible(visible:boolean)
         if blurEnabled then tween(blur,{Size=0},SMOOTH) end
     else
         tween(holder,{Position=savedPos},SPRING)
-        tween(dim,{BackgroundTransparency=0.55},SMOOTH)
-        if blurEnabled then tween(blur,{Size=14},SMOOTH) end
+        tween(dim,{BackgroundTransparency=0.82},SMOOTH)
+        if blurEnabled then tween(blur,{Size=BLUR_SIZE},SMOOTH) end
     end
 end
 rootMaid:GiveTask(UserInputService.InputBegan:Connect(function(input:InputObject,gp:boolean)
@@ -2438,6 +2469,14 @@ rootMaid:GiveTask(screenGui.Destroying:Connect(function()
     if espMaid then espMaid:Destroy(); espMaid=nil end
     if blur then pcall(function() blur:Destroy() end) end
     saveConfig()
+    -- restore the original print/warn so game output stops routing through this
+    -- (now-dead) script — otherwise the logger closure + logs table leak forever
+    pcall(function()
+        if _G["ZEX_ORIG_PRINT"] then _G.print = _G["ZEX_ORIG_PRINT"] :: any end
+        if _G["ZEX_ORIG_WARN"]  then _G.warn  = _G["ZEX_ORIG_WARN"]  :: any end
+    end)
+    table.clear(activeTweens)
+    table.clear(logs)
     rootMaid:Destroy()
     log("INFO","[ZEX] v8.0 PRIME teardown complete")
 end))
@@ -2449,8 +2488,8 @@ switchTab("Dashboard")
 task.delay(0.03,function()
     if not screenGui or not screenGui.Parent then return end
     tween(holder,{Size=UDim2.fromOffset(WIN_W,WIN_H)},SPRING)
-    tween(dim,{BackgroundTransparency=0.55},GENTLE)
-    if blurEnabled then tween(blur,{Size=14},GENTLE) end
+    tween(dim,{BackgroundTransparency=0.82},GENTLE)
+    if blurEnabled then tween(blur,{Size=BLUR_SIZE},GENTLE) end
 end)
 
 local cmdCount=0; for _ in pairs(CommandRegistry) do cmdCount+=1 end
