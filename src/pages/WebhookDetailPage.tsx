@@ -18,7 +18,7 @@ export default function WebhookDetailPage() {
   const navigate = useNavigate()
   const { webhooks, refresh, deleteWebhook, toggleWebhook } = useWebhooks()
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
-  const isDiscord = webhook?.has_secret && !!webhook.discord_url
+  const isDiscord = webhook?.type === 'discord'
   const webhookType = isDiscord ? 'discord' : 'native'
 
   const {

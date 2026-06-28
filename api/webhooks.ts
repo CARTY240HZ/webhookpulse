@@ -50,7 +50,7 @@ export default async function handler(req: any, res: any) {
       // S5: Select 'secret' to compute discord_url and has_secret.
       const { data: webhooks, error } = await supabase
         .from('webhooks')
-        .select('id, user_id, name, description, url_path, is_active, secret, created_at, updated_at, webhook_logs(count)')
+        .select('id, user_id, name, description, url_path, is_active, secret, type, created_at, updated_at, webhook_logs(count)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
@@ -62,8 +62,9 @@ export default async function handler(req: any, res: any) {
       const baseUrl = process.env.APP_URL || 'https://webhookpulse.vercel.app'
 
       const enriched = (webhooks || []).map((w: Record<string, unknown>) => {
+        const isDiscord = w.type === 'discord'
         const secret = w.secret ? String(w.secret).trim() : ''
-        const hasSecret = secret !== '' && secret !== 'null' && secret.length >= 32
+        const hasSecret = isDiscord && secret !== '' && secret !== 'null' && secret.length >= 32
         const discordUrl = hasSecret ? `${baseUrl}/api/webhooks/${w.id}/${secret}` : null
         const nativeUrl = `${baseUrl}/api/webhook-receive?path=${w.url_path}`
         // Exclude plaintext secret from response — never send it after creation
@@ -123,10 +124,11 @@ export default async function handler(req: any, res: any) {
           name: name.trim(),
           description: description || null,
           url_path: urlPath,
+          type: type,
           secret: null, // token shown once only — never stored in plaintext
           secret_hash: secret ? await hashSecretBcrypt(secret) : null,
         })
-        .select('id, user_id, name, description, url_path, is_active, created_at, updated_at')
+        .select('id, user_id, name, description, url_path, is_active, type, created_at, updated_at')
         .single()
 
       if (error) {

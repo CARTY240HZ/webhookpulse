@@ -24,7 +24,7 @@ export function mapLogToItem(
   const webhook = webhookMap.get(log.webhook_id)
   const payload = log.payload || {}
   const type: 'native' | 'discord' =
-    webhook?.has_secret && webhook?.discord_url ? 'discord' : 'native'
+    webhook?.type === 'discord' ? 'discord' : 'native'
   const source =
     typeof payload.source === 'string' ? payload.source : null
   const statusRaw =

@@ -25,10 +25,10 @@ export default function DashboardPage() {
 
   const getWebhookUrlAndType = (webhook: Webhook | undefined): { url: string; type: 'native' | 'discord' } => {
     if (!webhook) return { url: '', type: 'native' }
-    const isDiscord = webhook.has_secret && !!webhook.discord_url
+    const type = webhook.type || 'native'
     return {
-      url: isDiscord ? (webhook.discord_url || '') : (webhook.native_url || ''),
-      type: isDiscord ? 'discord' : 'native',
+      url: type === 'discord' ? (webhook.discord_url || '') : (webhook.native_url || ''),
+      type,
     }
   }
 

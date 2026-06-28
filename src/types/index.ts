@@ -42,6 +42,7 @@ export interface Webhook {
   has_secret?: boolean
   discord_url?: string | null
   native_url?: string
+  type?: 'native' | 'discord'
 }
 
 export interface WebhookLog {
