@@ -1,15 +1,14 @@
 import crypto from 'crypto'
-import { getSupabase } from '../../_lib/supabase.js'
-import { captureException } from '../../_lib/sentry.js'
-import { checkIpAgainstRules } from '../../_lib/ipfilter.js'
-import { isValidUUID, getQueryParamString } from '../../_lib/validate.js'
-import { checkRateLimit } from '../../_lib/ratelimit.js'
-import { verifyWebhookSecret } from '../../_lib/hmac.js'
+import { getSupabase } from '../_lib/supabase.js'
+import { captureException } from '../_lib/sentry.js'
+import { checkIpAgainstRules } from '../_lib/ipfilter.js'
+import { isValidUUID, getQueryParamString } from '../_lib/validate.js'
+import { checkRateLimit } from '../_lib/ratelimit.js'
+import { verifyWebhookSecret } from '../_lib/hmac.js'
 
 // ============================================================
-// DISCORD WEBHOOK API — CATCH-ALL ROUTE
-// Vercel Serverless Functions: api/webhooks/[...slug].ts
-// Matches: /api/webhooks/{webhookId}/{token}
+// DISCORD WEBHOOK DISPATCH — FLAT ROUTE
+// Vercel Rewrite: /api/webhooks/{id}/{token} → /api/webhook-discord?webhookId={id}&token={token}
 // ============================================================
 
 const ERR_UNKNOWN_WEBHOOK = { code: 10015, message: 'Unknown Webhook' }
@@ -134,23 +133,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // Extract path segments from catch-all route
-    // Vercel: req.query.slug is a string for 1 segment, array for 2+
-    const slug = req.query?.slug
-    let segments: string[] = []
-    if (Array.isArray(slug)) {
-      segments = slug
-    } else if (typeof slug === 'string') {
-      segments = [slug]
-    }
-
-    // Must be exactly 2 segments: webhookId / token
-    if (segments.length !== 2) {
-      return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
-    }
-
-    const webhookId = segments[0]
-    const token = segments[1]
+    // Extract webhookId and token from query params (set by rewrite)
+    const webhookId = getQueryParamString(req, 'webhookId')
+    const token = getQueryParamString(req, 'token')
 
     if (!isValidUUID(webhookId) || !token) {
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)

@@ -16,6 +16,9 @@
     "api/webhooks/reveal.ts": {
       "maxDuration": 10
     },
+    "api/webhook-discord.ts": {
+      "maxDuration": 10
+    },
     "api/webhook-ip-rules.ts": {
       "maxDuration": 10
     },
@@ -26,9 +29,6 @@
       "maxDuration": 10
     },
     "api/health-check.ts": {
-      "maxDuration": 10
-    },
-    "api/webhooks/[...slug].ts": {
       "maxDuration": 10
     },
     "api/debug-env.ts": {
@@ -74,6 +74,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/webhooks/([^/]+)/([^/]+)", "destination": "/api/webhook-discord?webhookId=$1&token=$2" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/assets/(.*)", "destination": "/assets/$1" },
     { "source": "/sw.js", "destination": "/sw.js" },
