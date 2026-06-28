@@ -1,7 +1,7 @@
 import { getSupabase } from './_lib/supabase.js'
 import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
-import { isValidUUID } from './_lib/validate.js'
+import { isValidUUID, getQueryParam, getQueryParamString } from './_lib/validate.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { setSecurityHeaders, parseIntSafe, setPrivateCache } from './_lib/security.js'
@@ -53,7 +53,7 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    const webhookId = req.query?.webhookId || ''
+    const webhookId = getQueryParamString(req, 'webhookId')
     if (!webhookId || !isValidUUID(String(webhookId))) {
       return apiError(res, 400, 'INVALID_WEBHOOK_ID')
     }
@@ -104,7 +104,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // ─── GET: CSV EXPORT or LIST LOGS ───
-    if (req.query?.format === 'csv') {
+    if (getQueryParamString(req, 'format') === 'csv') {
       // S7: Cap at 10,000 rows
       const { data: logs, error, count } = await supabase
         .from('webhook_logs')
@@ -147,12 +147,12 @@ export default async function handler(req: any, res: any) {
     // ─── LIST LOGS ───
     // Parse query parameters for filtering
     const MAX_QUERY_LENGTH = 200
-    const q = typeof req.query?.q === 'string' ? req.query.q.slice(0, MAX_QUERY_LENGTH) : undefined
-    const ip = typeof req.query?.ip === 'string' ? req.query.ip : undefined
-    const from = typeof req.query?.from === 'string' ? req.query.from : undefined
-    const to = typeof req.query?.to === 'string' ? req.query.to : undefined
-    const source = typeof req.query?.source === 'string' ? req.query.source : undefined
-    const type = typeof req.query?.type === 'string' ? req.query.type : undefined
+    const q = getQueryParamString(req, 'q').slice(0, MAX_QUERY_LENGTH) || undefined
+    const ip = getQueryParam(req, 'ip')
+    const from = getQueryParam(req, 'from')
+    const to = getQueryParam(req, 'to')
+    const source = getQueryParam(req, 'source')
+    const type = getQueryParam(req, 'type')
 
     // Type filter: since the endpoint is scoped to a single webhook,
     // verify the webhook's type matches the requested filter.
@@ -166,8 +166,8 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const page = Math.max(1, parseIntSafe(req.query?.page, 1))
-    const limit = Math.min(200, Math.max(1, parseIntSafe(req.query?.limit, 50)))
+    const page = Math.max(1, parseIntSafe(getQueryParam(req, 'page'), 1))
+    const limit = Math.min(200, Math.max(1, parseIntSafe(getQueryParam(req, 'limit'), 50)))
     const offset = (page - 1) * limit
 
     let query = supabase

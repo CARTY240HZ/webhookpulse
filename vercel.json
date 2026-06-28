@@ -3,9 +3,27 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "installCommand": "npm ci",
+  "installCommand": "npm install",
   "functions": {
+    "api/2fa.ts": {
+      "maxDuration": 10
+    },
+    "api/user-settings.ts": {
+      "maxDuration": 10
+    },
+    "api/webhooks.ts": {
+      "maxDuration": 10
+    },
+    "api/webhook-ip-rules.ts": {
+      "maxDuration": 10
+    },
     "api/webhook-receive.ts": {
+      "maxDuration": 10
+    },
+    "api/webhook-logs.ts": {
+      "maxDuration": 10
+    },
+    "api/health-check.ts": {
       "maxDuration": 10
     },
     "api/webhooks/[webhookId]/[token].ts": {
@@ -15,6 +33,9 @@
       "maxDuration": 10
     },
     "api/debug-webhook.ts": {
+      "maxDuration": 10
+    },
+    "api/debug-secret.ts": {
       "maxDuration": 10
     }
   },

@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { getSupabase } from './_lib/supabase.js'
 import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
-import { validateWebhookInput, clampString, isValidUUID } from './_lib/validate.js'
+import { validateWebhookInput, clampString, isValidUUID, getQueryParamString } from './_lib/validate.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { hashSecret, hashSecretBcrypt } from './_lib/hmac.js'
@@ -190,7 +190,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // ─── DELETE WEBHOOK ───
-    const id = req.query?.id || ''
+    const id = getQueryParamString(req, 'id')
     if (!id || !isValidUUID(String(id))) {
       return apiError(res, 400, 'INVALID_UUID')
     }

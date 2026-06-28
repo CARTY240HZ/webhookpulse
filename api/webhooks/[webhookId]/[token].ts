@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { getSupabase } from '../../_lib/supabase.js'
 import { captureException } from '../../_lib/sentry.js'
 import { checkIpAgainstRules } from '../../_lib/ipfilter.js'
-import { isValidUUID } from '../../_lib/validate.js'
+import { isValidUUID, getQueryParamString } from '../../_lib/validate.js'
 import { checkRateLimit } from '../../_lib/ratelimit.js'
 import { verifyWebhookSecret } from '../../_lib/hmac.js'
 
@@ -283,8 +283,8 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const webhookId = String(req.query?.webhookId || '')
-    const token = String(req.query?.token || '')
+    const webhookId = getQueryParamString(req, 'webhookId')
+    const token = getQueryParamString(req, 'token')
 
     // Discord uses snowflake IDs (18-20 digits). We accept UUID as our internal mapping.
     if (!isValidUUID(webhookId) || !token) {
@@ -509,7 +509,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const logId = insertResult.data.id
-    const wait = req.query?.wait === 'true' || req.query?.wait === '1'
+    const wait = getQueryParamString(req, 'wait') === 'true' || getQueryParamString(req, 'wait') === '1'
 
     // --- Discord Message object (for ?wait=true) ---
     if (wait) {

@@ -1,5 +1,5 @@
 import { getSupabase } from './_lib/supabase.js'
-import { isValidPath } from './_lib/validate.js'
+import { isValidPath, getQueryParamString } from './_lib/validate.js'
 import { setSecurityHeaders, honeypotDelay, getTrustedIp, setPrivateCache } from './_lib/security.js'
 import { checkIpAgainstRules } from './_lib/ipfilter.js'
 import { checkRateLimit } from './_lib/ratelimit.js'
@@ -47,7 +47,7 @@ export default async function handler(req: any, res: any) {
     const supabase = getSupabase()
     log('4. Supabase created')
 
-    const path = req.query?.path || ''
+    const path = getQueryParamString(req, 'path')
     log(`5. Path: ${path}`)
     if (!path || !isValidPath(String(path))) {
       log('6. Path invalid, returning honeypot')

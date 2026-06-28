@@ -14,7 +14,36 @@ export function clampString(s: string, max: number): string {
   return s.length > max ? s.substring(0, max) : s
 }
 
-export function validateWebhookInput(name: string, description?: string): { ok: true } | { ok: false; code: string } {
+export function getQueryParam(req: any, key: string): string | undefined {
+  // Vercel Serverless Functions may not expose req.query consistently.
+  // Fallback to URL parsing from req.url.
+  const fromQuery = req.query?.[key]
+  if (fromQuery !== undefined && fromQuery !== null && fromQuery !== '') {
+    return String(fromQuery)
+  }
+  const rawUrl = req.url || ''
+  if (rawUrl.includes('?')) {
+    try {
+      const url = new URL(rawUrl, 'http://localhost')
+      const val = url.searchParams.get(key)
+      if (val) return val
+    } catch {
+      // ignore parse error
+    }
+  }
+  return undefined
+}
+
+export function getQueryParamString(req: any, key: string): string {
+  return getQueryParam(req, key) || ''
+}
+
+export function getQueryParamInt(req: any, key: string, defaultVal: number): number {
+  const val = getQueryParam(req, key)
+  if (!val) return defaultVal
+  const n = parseInt(val, 10)
+  return isNaN(n) ? defaultVal : n
+}
   if (!name || name.trim().length === 0) {
     return { ok: false, code: 'NAME_REQUIRED' }
   }

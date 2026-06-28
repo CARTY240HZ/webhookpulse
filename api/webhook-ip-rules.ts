@@ -3,6 +3,7 @@ import { getCorsHeaders, setCorsHeaders } from './_lib/cors.js'
 import { requireAuth } from './_lib/auth.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { isValidIpOrCidr } from './_lib/ipfilter.js'
+import { getQueryParamString } from './_lib/validate.js'
 import { setSecurityHeaders, setPrivateCache } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
 import { checkFixedWindowRateLimit } from './_lib/ratelimit.js'
@@ -32,7 +33,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     if (req.method === 'GET') {
-      const webhookId = String(req.query?.webhookId || '')
+      const webhookId = getQueryParamString(req, 'webhookId')
       if (!webhookId) {
         return apiError(res, 400, 'WEBHOOK_ID_REQUIRED')
       }

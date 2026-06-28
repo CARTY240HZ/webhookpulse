@@ -9,10 +9,8 @@ export function getCorsHeaders(type: 'public' | 'private', reqOrigin?: string) {
   const appUrl = process.env.APP_URL || ''
   let origin = type === 'public' ? '*' : appUrl
   if (type === 'private' && !origin) {
+    // Auto-detect origin from the Origin header when APP_URL is not set
     origin = (reqOrigin && ALLOWED_ORIGINS.has(reqOrigin)) ? reqOrigin : ''
-    if (!origin) {
-      console.warn('APP_URL not set and request origin not in whitelist — CORS private requests may fail')
-    }
   }
   return {
     'Access-Control-Allow-Origin': origin || (type === 'public' ? '*' : ''),

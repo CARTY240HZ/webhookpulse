@@ -2,6 +2,7 @@ import { getSupabase } from './_lib/supabase.js'
 import { setCorsHeaders } from './_lib/cors.js'
 import { getUserFromJWT } from './_lib/auth.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
+import { getQueryParam } from './_lib/validate.js'
 import { captureException } from './_lib/sentry.js'
 import { setSecurityHeaders } from './_lib/security.js'
 import { checkFixedWindowRateLimit } from './_lib/ratelimit.js'
@@ -113,7 +114,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // ─── LIST HEALTH CHECKS ───
-    const webhookId = req.query?.webhookId || req.query?.webhook_id
+    const webhookId = getQueryParam(req, 'webhookId')
     if (!webhookId || typeof webhookId !== 'string') {
       return apiError(res, 400, 'MISSING_WEBHOOK_ID')
     }
