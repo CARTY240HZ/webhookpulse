@@ -10,6 +10,12 @@
     },
     "api/webhooks/[webhookId]/[token].ts": {
       "maxDuration": 10
+    },
+    "api/debug-env.ts": {
+      "maxDuration": 10
+    },
+    "api/debug-webhook.ts": {
+      "maxDuration": 10
     }
   },
   "headers": [
