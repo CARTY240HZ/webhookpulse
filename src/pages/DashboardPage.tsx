@@ -6,14 +6,16 @@ import { t } from '../i18n'
 import WebhookCard from '../components/WebhookCard'
 import TemplateCard from '../components/TemplateCard'
 import CreateWebhookModal from '../components/CreateWebhookModal'
+import RevealWebhookUrlModal from '../components/RevealWebhookUrlModal'
 import { SkeletonCard } from '../components/Skeleton'
 import { useAdaptiveServing } from '../hooks/useAdaptiveServing'
 import type { Webhook } from '../types'
 
 export default function DashboardPage() {
-  const { webhooks, loading, error, createWebhook, deleteWebhook, toggleWebhook } = useWebhooks()
+  const { webhooks, loading, error, createWebhook, deleteWebhook, toggleWebhook, revealWebhook } = useWebhooks()
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedWebhookId, setSelectedWebhookId] = useState<string>('')
+  const [revealModalWebhook, setRevealModalWebhook] = useState<{ id: string; name: string } | null>(null)
   const navigate = useNavigate()
 
   const handleCreate = async (name: string, description?: string, type: 'native' | 'discord' = 'native') => {
@@ -135,6 +137,7 @@ export default function DashboardPage() {
               onDelete={(id) => deleteWebhook(id)}
               onToggle={(id, active) => toggleWebhook(id, active)}
               onNavigate={(id) => navigate(`/dashboard/webhooks/${id}`)}
+              onReveal={(id, name) => setRevealModalWebhook({ id, name })}
             />
           ))}
         </div>
@@ -181,6 +184,15 @@ export default function DashboardPage() {
         <CreateWebhookModal
           onClose={() => setModalOpen(false)}
           onCreate={handleCreate}
+        />
+      )}
+
+      {revealModalWebhook && (
+        <RevealWebhookUrlModal
+          webhookId={revealModalWebhook.id}
+          webhookName={revealModalWebhook.name}
+          onClose={() => setRevealModalWebhook(null)}
+          onReveal={revealWebhook}
         />
       )}
     </div>

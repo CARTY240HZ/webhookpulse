@@ -13,6 +13,9 @@
     "api/webhooks.ts": {
       "maxDuration": 10
     },
+    "api/webhooks/reveal.ts": {
+      "maxDuration": 10
+    },
     "api/webhook-ip-rules.ts": {
       "maxDuration": 10
     },

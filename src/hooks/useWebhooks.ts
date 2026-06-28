@@ -99,5 +99,25 @@ export function useWebhooks() {
     await fetchWebhooks()
   }
 
-  return { webhooks, loading, error, createWebhook, deleteWebhook, toggleWebhook, refresh: fetchWebhooks }
+  const revealWebhook = async (id: string, password: string) => {
+    const { data: authData } = await supabase.auth.getSession()
+    const session = authData?.session
+    if (!session) throw new Error('Not authenticated')
+
+    const res = await fetch(`${API_BASE}/api/webhooks/reveal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ webhookId: id, password }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to reveal webhook URL')
+    }
+    return data as { discord_url: string; token: string; warning: string }
+  }
+
+  return { webhooks, loading, error, createWebhook, deleteWebhook, toggleWebhook, revealWebhook, refresh: fetchWebhooks }
 }

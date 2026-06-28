@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, Trash2, PauseCircle, PlayCircle, Zap, ExternalLink, Clock } from 'lucide-react'
+import { Copy, Trash2, PauseCircle, PlayCircle, Zap, ExternalLink, Clock, Eye } from 'lucide-react'
 import type { Webhook } from '../types'
 import HealthIndicator from './HealthIndicator'
 
@@ -8,6 +8,7 @@ interface WebhookCardProps {
   onDelete: (id: string) => void
   onToggle: (id: string, isActive: boolean) => void
   onNavigate?: (id: string) => void
+  onReveal?: (id: string, name: string) => void
 }
 
 function CopyUrl({ url, label }: { url: string; label: string }) {
@@ -38,7 +39,7 @@ function CopyUrl({ url, label }: { url: string; label: string }) {
   )
 }
 
-export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }: WebhookCardProps) {
+export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate, onReveal }: WebhookCardProps) {
   const type = webhook.type || 'native'
   const typeLabel = type === 'discord' ? 'Discord' : 'Native'
   const typeColor = type === 'discord' ? 'bg-blue-500/10 text-blue-400' : 'bg-[var(--accent)]/10 text-[var(--accent)]'
@@ -165,6 +166,17 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate }:
             >
               <ExternalLink className="w-4 h-4" />
               View
+            </button>
+          )}
+          {type === 'discord' && onReveal && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReveal(webhook.id, webhook.name) }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] hover:border-[var(--border-hover)] transition-all duration-200"
+              style={{ background: 'var(--bg)' }}
+              title="Reveal Discord URL"
+            >
+              <Eye className="w-4 h-4" />
+              Reveal URL
             </button>
           )}
           <button
