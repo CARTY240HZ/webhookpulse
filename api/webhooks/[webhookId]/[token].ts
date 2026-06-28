@@ -286,14 +286,12 @@ export default async function handler(req: any, res: any) {
     const webhookId = getQueryParamString(req, 'webhookId')
     const token = getQueryParamString(req, 'token')
 
-    // Discord uses snowflake IDs (18-20 digits). We accept UUID as our internal mapping.
     if (!isValidUUID(webhookId) || !token) {
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
     }
 
     const supabase = getSupabase()
 
-    // Look up webhook by UUID
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
       .select('id, secret, secret_hash, is_active, name')
@@ -308,14 +306,11 @@ export default async function handler(req: any, res: any) {
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
     }
 
-    // Verify token. Discord tokens are cryptographically random (~68 chars).
-    // We generate one on creation. Legacy webhooks without a proper token are rejected.
     const storedToken = webhook.secret ? String(webhook.secret).trim() : ''
     const storedHash = webhook.secret_hash ? String(webhook.secret_hash).trim() : ''
     const isLegacy = !storedToken && !storedHash
 
     if (isLegacy) {
-      // Legacy webhook without proper token — treated as unknown
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
     }
 
@@ -324,7 +319,7 @@ export default async function handler(req: any, res: any) {
       return discordError(res, 401, ERR_UNKNOWN_WEBHOOK)
     }
 
-    // Parse body
+    // Parse body — accept ANY JSON, text, or empty body
     let body: Record<string, unknown> = {}
     try {
       if (req.body) {
@@ -337,93 +332,109 @@ export default async function handler(req: any, res: any) {
         }
       }
     } catch {
-      return discordError(res, 400, ERR_INVALID_FORM)
+      // Body is not JSON — store as plain text payload
+      body = { _raw: String(req.body || '') }
     }
 
-    // --- Discord validation: content or embeds required ---
-    const content = body.content as string | undefined
-    const embeds = body.embeds as unknown[] | undefined
-    const hasContent = content && typeof content === 'string' && content.trim().length > 0
-    const hasEmbeds = Array.isArray(embeds) && embeds.length > 0
-
-    if (!hasContent && !hasEmbeds) {
-      return discordError(res, 400, ERR_EMPTY_MESSAGE)
+    // --- LOOSE MODE: sanitize and accept any payload ---
+    function coerceString(val: unknown): string | null {
+      if (val === null || val === undefined) return null
+      if (typeof val === 'string') return val
+      return String(val)
+    }
+    function coerceNumber(val: unknown): number | null {
+      if (val === null || val === undefined) return null
+      if (typeof val === 'number') return Number.isFinite(val) ? val : null
+      const n = Number(val)
+      return Number.isFinite(n) ? n : null
+    }
+    function coerceBoolean(val: unknown): boolean {
+      if (typeof val === 'boolean') return val
+      if (typeof val === 'string') return val.toLowerCase() === 'true'
+      return !!val
+    }
+    function sanitizeEmbed(embed: any): Record<string, unknown> | null {
+      if (!embed || typeof embed !== 'object') return null
+      const sanitized: Record<string, unknown> = {}
+      if (embed.title !== undefined) sanitized.title = coerceString(embed.title)
+      if (embed.type !== undefined) sanitized.type = coerceString(embed.type)
+      if (embed.description !== undefined) sanitized.description = coerceString(embed.description)
+      if (embed.url !== undefined) sanitized.url = coerceString(embed.url)
+      if (embed.timestamp !== undefined) sanitized.timestamp = coerceString(embed.timestamp)
+      if (embed.color !== undefined) {
+        const color = coerceNumber(embed.color)
+        if (color !== null) sanitized.color = color
+      }
+      if (embed.footer && typeof embed.footer === 'object') {
+        sanitized.footer = { text: coerceString(embed.footer.text) }
+        if (embed.footer.icon_url !== undefined) sanitized.footer.icon_url = coerceString(embed.footer.icon_url)
+      }
+      if (embed.image && typeof embed.image === 'object') {
+        sanitized.image = { url: coerceString(embed.image.url) }
+      }
+      if (embed.thumbnail && typeof embed.thumbnail === 'object') {
+        sanitized.thumbnail = { url: coerceString(embed.thumbnail.url) }
+      }
+      if (embed.author && typeof embed.author === 'object') {
+        sanitized.author = { name: coerceString(embed.author.name) }
+        if (embed.author.url !== undefined) sanitized.author.url = coerceString(embed.author.url)
+        if (embed.author.icon_url !== undefined) sanitized.author.icon_url = coerceString(embed.author.icon_url)
+      }
+      if (Array.isArray(embed.fields)) {
+        sanitized.fields = embed.fields
+          .map((f: any) => {
+            if (!f || typeof f !== 'object') return null
+            const field: Record<string, unknown> = {}
+            if (f.name !== undefined) field.name = coerceString(f.name)
+            if (f.value !== undefined) field.value = coerceString(f.value)
+            if (f.inline !== undefined) field.inline = coerceBoolean(f.inline)
+            return field
+          })
+          .filter(Boolean)
+      }
+      return Object.keys(sanitized).length > 0 ? sanitized : null
     }
 
-    // --- Validate limits and structure (Discord exact) ---
-    const formErrors: Record<string, any> = {}
+    // Normalize payload to Discord-compatible format
+    let normalizedPayload: Record<string, unknown> = {}
 
-    if (content !== undefined) {
-      if (typeof content !== 'string') {
-        formErrors.content = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be a string.' }] }
-      } else if (content.length > MAX_CONTENT_LENGTH) {
-        formErrors.content = { _errors: [{ code: 'BASE_TYPE_MAX_LENGTH', message: `Must be ${MAX_CONTENT_LENGTH} or fewer in length.` }] }
+    const rawContent = coerceString(body.content)
+    const rawUsername = coerceString(body.username)
+    const rawAvatarUrl = coerceString(body.avatar_url)
+    const rawTts = coerceBoolean(body.tts)
+    const rawFlags = coerceNumber(body.flags)
+
+    if (rawContent !== null) normalizedPayload.content = rawContent
+    if (rawUsername !== null) normalizedPayload.username = rawUsername
+    if (rawAvatarUrl !== null) normalizedPayload.avatar_url = rawAvatarUrl
+    normalizedPayload.tts = rawTts
+
+    // Normalize embeds — accept object or array
+    let rawEmbeds: unknown[] = []
+    if (body.embeds !== undefined) {
+      if (Array.isArray(body.embeds)) {
+        rawEmbeds = body.embeds
+      } else if (body.embeds && typeof body.embeds === 'object') {
+        rawEmbeds = [body.embeds]
+      }
+    }
+    const sanitizedEmbeds = rawEmbeds.map(sanitizeEmbed).filter(Boolean) as Record<string, unknown>[]
+    if (sanitizedEmbeds.length > 0) normalizedPayload.embeds = sanitizedEmbeds
+
+    // Also accept top-level fields that some scripts put at root
+    if (body.title !== undefined || body.description !== undefined || body.color !== undefined) {
+      const rootEmbed = sanitizeEmbed(body)
+      if (rootEmbed) {
+        const existing = (normalizedPayload.embeds as Record<string, unknown>[]) || []
+        normalizedPayload.embeds = [rootEmbed, ...existing]
       }
     }
 
-    if (body.username !== undefined) {
-      if (typeof body.username !== 'string') {
-        formErrors.username = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be a string.' }] }
-      } else if ((body.username as string).length > MAX_USERNAME_LENGTH) {
-        formErrors.username = { _errors: [{ code: 'BASE_TYPE_MAX_LENGTH', message: `Must be ${MAX_USERNAME_LENGTH} or fewer in length.` }] }
-      }
-    }
-
-    if (body.avatar_url !== undefined && typeof body.avatar_url !== 'string') {
-      formErrors.avatar_url = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be a string.' }] }
-    }
-
-    if (body.tts !== undefined && typeof body.tts !== 'boolean') {
-      formErrors.tts = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be a boolean.' }] }
-    }
-
-    if (embeds !== undefined) {
-      if (!Array.isArray(embeds)) {
-        formErrors.embeds = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be an array.' }] }
-      } else if (embeds.length > MAX_EMBEDS) {
-        formErrors.embeds = { _errors: [{ code: 'ARRAY_TYPE_MAX_LENGTH', message: `Must be ${MAX_EMBEDS} or fewer in length.` }] }
-      } else {
-        const embedErrors: Record<string, any> = {}
-        for (let i = 0; i < embeds.length; i++) {
-          const errs = validateEmbed(embeds[i], i)
-          if (errs.length > 0) {
-            embedErrors[i] = { _errors: errs.map(e => ({ code: 'BASE_TYPE_INVALID', message: e })) }
-          }
-        }
-        if (Object.keys(embedErrors).length > 0) {
-          formErrors.embeds = embedErrors
-        }
-      }
-    }
-
-    if (body.components !== undefined) {
-      if (!Array.isArray(body.components)) {
-        formErrors.components = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be an array.' }] }
-      } else if ((body.components as any[]).length > MAX_COMPONENTS) {
-        formErrors.components = { _errors: [{ code: 'ARRAY_TYPE_MAX_LENGTH', message: `Must be ${MAX_COMPONENTS} or fewer in length.` }] }
-      }
-    }
-
-    if (body.attachments !== undefined) {
-      if (!Array.isArray(body.attachments)) {
-        formErrors.attachments = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be an array.' }] }
-      } else if ((body.attachments as any[]).length > MAX_ATTACHMENTS) {
-        formErrors.attachments = { _errors: [{ code: 'ARRAY_TYPE_MAX_LENGTH', message: `Must be ${MAX_ATTACHMENTS} or fewer in length.` }] }
-      }
-    }
-
-    if (body.flags !== undefined && !Number.isInteger(body.flags)) {
-      formErrors.flags = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be an integer.' }] }
-    }
-
-    if (body.nonce !== undefined) {
-      if (typeof body.nonce !== 'string' && typeof body.nonce !== 'number') {
-        formErrors.nonce = { _errors: [{ code: 'BASE_TYPE_BAD_TYPE', message: 'Must be a string or number.' }] }
-      }
-    }
-
-    if (Object.keys(formErrors).length > 0) {
-      return discordErrorForm(res, 400, formErrors)
+    // If no content and no embeds, store as a generic log
+    if (!normalizedPayload.content && !normalizedPayload.embeds) {
+      // Store the raw body as a generic payload
+      normalizedPayload.content = 'Webhook received'
+      normalizedPayload._raw_body = body
     }
 
     // --- IP filtering ---
@@ -458,19 +469,19 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // --- Store log (Discord payload) ---
+    // --- Store log ---
     const filteredHeaders = filterHeaders(req.headers as Record<string, string>)
 
     const payload: Record<string, unknown> = {
-      content: body.content ?? null,
-      username: body.username ?? null,
-      avatar_url: body.avatar_url ?? null,
-      tts: body.tts ?? false,
-      embeds: body.embeds ?? [],
+      content: normalizedPayload.content ?? null,
+      username: normalizedPayload.username ?? null,
+      avatar_url: normalizedPayload.avatar_url ?? null,
+      tts: normalizedPayload.tts ?? false,
+      embeds: normalizedPayload.embeds ?? [],
       allowed_mentions: body.allowed_mentions ?? null,
       components: body.components ?? null,
       attachments: body.attachments ?? null,
-      flags: body.flags ?? null,
+      flags: rawFlags,
       thread_name: body.thread_name ?? null,
       applied_tags: body.applied_tags ?? null,
       nonce: body.nonce ?? null,
@@ -511,7 +522,6 @@ export default async function handler(req: any, res: any) {
     const logId = insertResult.data.id
     const wait = getQueryParamString(req, 'wait') === 'true' || getQueryParamString(req, 'wait') === '1'
 
-    // --- Discord Message object (for ?wait=true) ---
     if (wait) {
       const msgId = generateSnowflakeLike()
       const now = nowIso()
@@ -519,12 +529,12 @@ export default async function handler(req: any, res: any) {
       const messageObj: Record<string, unknown> = {
         id: msgId,
         type: 0,
-        content: body.content ?? '',
+        content: (normalizedPayload.content as string) || '',
         channel_id: webhookId,
         guild_id: null,
         author: {
           id: webhookId,
-          username: (body.username as string) || webhook.name,
+          username: (normalizedPayload.username as string) || webhook.name,
           discriminator: '0000',
           global_name: null,
           avatar: null,
@@ -543,15 +553,15 @@ export default async function handler(req: any, res: any) {
         },
         member: null,
         attachments: (body.attachments as any[]) ?? [],
-        embeds: (body.embeds as any[]) ?? [],
+        embeds: (normalizedPayload.embeds as any[]) ?? [],
         mentions: [],
         mention_roles: [],
         pinned: false,
         mention_everyone: false,
-        tts: body.tts ?? false,
+        tts: normalizedPayload.tts ?? false,
         timestamp: now,
         edited_timestamp: null,
-        flags: body.flags ?? 0,
+        flags: rawFlags ?? 0,
         components: (body.components as any[]) ?? null,
         nonce: body.nonce ?? null,
         referenced_message: null,
@@ -574,7 +584,6 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json(messageObj)
     }
 
-    // Default Discord behavior: 204 No Content
     return res.status(204).end()
   } catch (err) {
     captureException(err as Error)
