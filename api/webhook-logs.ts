@@ -5,6 +5,7 @@ import { isValidUUID } from './_lib/validate.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { setSecurityHeaders, parseIntSafe, setPrivateCache } from './_lib/security.js'
+import { checkFixedWindowRateLimit } from './_lib/ratelimit.js'
 
 const MAX_EXPORT_ROWS = 10_000
 
@@ -44,6 +45,12 @@ export default async function handler(req: any, res: any) {
     const user = await getUserFromJWT(authHeader)
     if (!user) {
       return apiError(res, 401, 'UNAUTHORIZED')
+    }
+
+    // Rate limit: 100 requests per minute per user
+    const rateAllowed = await checkFixedWindowRateLimit(`logs:${user.id}`, 100, 60)
+    if (!rateAllowed) {
+      return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     const webhookId = req.query?.webhookId || ''

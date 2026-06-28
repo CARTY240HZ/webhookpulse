@@ -5,7 +5,7 @@ import { checkIpAgainstRules } from './_lib/ipfilter.js'
 import { checkRateLimit } from './_lib/ratelimit.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
-import crypto from 'crypto'
+import { verifyWebhookSecret } from './_lib/hmac.js'
 
 const MAX_BODY_SIZE = 256 * 1024
 
@@ -123,24 +123,17 @@ export default async function handler(req: any, res: any) {
 
     // Secret check
     const providedSecret = req.headers['x-webhook-secret'] || ''
-    log(`17. Secret check: provided=${!!providedSecret}, webhook_secret=${!!webhook.secret}`)
+    log(`17. Secret check: provided=${!!providedSecret}, webhook_secret=${!!webhook.secret}, webhook_secret_hash=${!!webhook.secret_hash}`)
     let secretValid = false
-    const ws = String(webhook.secret || '')
-    const ps = String(providedSecret)
-    if (ws.trim() !== '' && ws.trim() !== 'null') {
-      // timingSafeEqual requires EXACT same length — compare length first
-      if (ps.length !== ws.length) {
-        secretValid = false
-      } else {
-        try {
-          secretValid = crypto.timingSafeEqual(Buffer.from(ps), Buffer.from(ws))
-        } catch (err: any) {
-          log(`18. timingSafeEqual error: ${err.message}`)
-          secretValid = false
-        }
-      }
-    } else {
-      secretValid = true
+    try {
+      secretValid = await verifyWebhookSecret(
+        String(providedSecret),
+        webhook.secret ? String(webhook.secret) : null,
+        webhook.secret_hash ? String(webhook.secret_hash) : null
+      )
+    } catch (err: any) {
+      log(`18. verifyWebhookSecret error: ${err.message}`)
+      secretValid = false
     }
     log(`18. Secret valid: ${secretValid}`)
     if (!secretValid) {

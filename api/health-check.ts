@@ -4,6 +4,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { apiError, apiSuccess } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import { setSecurityHeaders } from './_lib/security.js'
+import { checkFixedWindowRateLimit } from './_lib/ratelimit.js'
 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
@@ -25,6 +26,12 @@ export default async function handler(req: any, res: any) {
     const user = await getUserFromJWT(authHeader)
     if (!user) {
       return apiError(res, 401, 'UNAUTHORIZED')
+    }
+
+    // Rate limit: 30 requests per minute per user
+    const rateAllowed = await checkFixedWindowRateLimit(`health:${user.id}`, 30, 60)
+    if (!rateAllowed) {
+      return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
     }
 
     if (req.method === 'POST') {

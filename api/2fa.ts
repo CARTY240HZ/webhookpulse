@@ -4,7 +4,7 @@ import { getUserFromJWT } from './_lib/auth.js'
 import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
 import crypto from 'crypto'
-import { hashSecret } from './_lib/hmac.js'
+import bcrypt from 'bcryptjs'
 import { setSecurityHeaders, checkBruteLimit, resetBruteLimit } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
 
@@ -40,7 +40,7 @@ export default async function handler(req: any, res: any) {
       // Generate 6-digit code with cryptographically secure RNG
       const code = crypto.randomInt(100000, 999999).toString().padStart(6, '0')
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 min
-      const hashedCode = hashSecret(code)
+      const hashedCode = await bcrypt.hash(code, 10)
 
       const { error } = await supabase
         .from('profiles')
@@ -94,15 +94,9 @@ export default async function handler(req: any, res: any) {
         return apiError(res, 400, 'CODE_EXPIRED')
       }
 
-      // Verify code with timing-safe comparison — both hashes are 64-char hex strings
+      // Verify code with bcrypt (adaptive hashing — resistant to brute-force if DB leaks)
       const storedCodeHash = profile.two_factor_code || ''
-      const providedCodeHash = hashSecret(code)
-      const expectedHashLength = 64
-      if (
-        storedCodeHash.length !== expectedHashLength ||
-        providedCodeHash.length !== expectedHashLength ||
-        !crypto.timingSafeEqual(Buffer.from(storedCodeHash, 'hex'), Buffer.from(providedCodeHash, 'hex'))
-      ) {
+      if (!storedCodeHash || !(await bcrypt.compare(code, storedCodeHash))) {
         return apiError(res, 400, 'INVALID_CODE')
       }
 

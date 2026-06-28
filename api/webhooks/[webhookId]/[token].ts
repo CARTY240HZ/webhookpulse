@@ -4,6 +4,7 @@ import { captureException } from '../../_lib/sentry.js'
 import { checkIpAgainstRules } from '../../_lib/ipfilter.js'
 import { isValidUUID } from '../../_lib/validate.js'
 import { checkRateLimit } from '../../_lib/ratelimit.js'
+import { verifyWebhookSecret } from '../../_lib/hmac.js'
 
 // ============================================================
 // DISCORD WEBHOOK API — IDENTICAL TO DISCORD API v10
@@ -295,7 +296,7 @@ export default async function handler(req: any, res: any) {
     // Look up webhook by UUID
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, is_active, name')
+      .select('id, secret, secret_hash, is_active, name')
       .eq('id', webhookId)
       .single()
 
@@ -310,18 +311,16 @@ export default async function handler(req: any, res: any) {
     // Verify token. Discord tokens are cryptographically random (~68 chars).
     // We generate one on creation. Legacy webhooks without a proper token are rejected.
     const storedToken = webhook.secret ? String(webhook.secret).trim() : ''
-    const isLegacy = !storedToken || storedToken === 'null' || storedToken.length < 32
+    const storedHash = webhook.secret_hash ? String(webhook.secret_hash).trim() : ''
+    const isLegacy = !storedToken && !storedHash
 
     if (isLegacy) {
       // Legacy webhook without proper token — treated as unknown
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
     }
 
-    if (token.length !== storedToken.length) {
-      return discordError(res, 401, ERR_UNKNOWN_WEBHOOK)
-    }
-
-    if (!crypto.timingSafeEqual(Buffer.from(token), Buffer.from(storedToken))) {
+    const tokenValid = await verifyWebhookSecret(token, storedToken || null, storedHash || null)
+    if (!tokenValid) {
       return discordError(res, 401, ERR_UNKNOWN_WEBHOOK)
     }
 

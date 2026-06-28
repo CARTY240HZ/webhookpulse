@@ -5,6 +5,7 @@ import { apiError, apiSuccess } from './_lib/errors.js'
 import { isValidIpOrCidr } from './_lib/ipfilter.js'
 import { setSecurityHeaders } from './_lib/security.js'
 import { logAuditFromRequest } from './_lib/audit.js'
+import { checkFixedWindowRateLimit } from './_lib/ratelimit.js'
 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
@@ -20,6 +21,12 @@ export default async function handler(req: any, res: any) {
 
   const user = await requireAuth(req, res)
   if (!user) return
+
+  // Rate limit: 30 requests per minute per user
+  const rateAllowed = await checkFixedWindowRateLimit(`iprules:${user.id}`, 30, 60)
+  if (!rateAllowed) {
+    return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
+  }
 
   const supabase = getSupabase()
 
