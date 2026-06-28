@@ -28,7 +28,7 @@
     "api/health-check.ts": {
       "maxDuration": 10
     },
-    "api/webhooks/[webhookId]/[token].ts": {
+    "api/webhooks/[...slug].ts": {
       "maxDuration": 10
     },
     "api/debug-env.ts": {
