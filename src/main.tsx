@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
-import { configError } from './lib/supabase'
+import { configError } from './lib/config'
 import App from './App'
 import './index.css'
 

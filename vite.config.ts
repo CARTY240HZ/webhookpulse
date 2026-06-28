@@ -23,19 +23,20 @@ export default defineConfig(async () => {
       target: 'esnext',
       cssCodeSplit: true,
       sourcemap: true,
+      chunkSizeWarningLimit: 350,
       rollupOptions: {
         output: {
           manualChunks: {
             react: ['react', 'react-dom', 'react-router-dom'],
             supabase: ['@supabase/supabase-js'],
+            sentry: ['@sentry/react', '@sentry/node'],
             lucide: ['lucide-react'],
           },
         },
       },
-      chunkSizeWarningLimit: 200,
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', 'lucide-react'],
+      include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js', '@sentry/react', 'lucide-react'],
     },
     server: {
       port: 5173,
