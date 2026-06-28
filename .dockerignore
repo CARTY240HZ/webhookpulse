@@ -1,0 +1,14 @@
+node_modules
+.git
+.env
+.env.local
+.env.example
+*.md
+.vercel
+.claude
+.worktrees
+webhookpulse-max
+dist
+webhookpulse.zip
+fix-and-push.ps1
+push-to-github.sh

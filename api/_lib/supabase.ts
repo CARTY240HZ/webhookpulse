@@ -1,9 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-let client: SupabaseClient | null = null
+let serviceClient: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient {
-  if (client) return client
+  return getServiceClient()
+}
+
+export function getServiceClient(): SupabaseClient {
+  if (serviceClient) return serviceClient
 
   const supabaseUrl = process.env.SUPABASE_URL || ''
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || ''
@@ -12,9 +16,29 @@ export function getSupabase(): SupabaseClient {
     throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY')
   }
 
-  client = createClient(supabaseUrl, supabaseServiceKey, {
+  serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  return client
+  return serviceClient
+}
+
+export function getUserClient(jwt: string): SupabaseClient {
+  const supabaseUrl = process.env.SUPABASE_URL || ''
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || ''
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY')
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      headers: { Authorization: `Bearer ${jwt}` },
+    },
+  })
+}
+
+export function getSupabaseAdmin(): SupabaseClient {
+  return getServiceClient()
 }

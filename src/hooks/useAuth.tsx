@@ -45,13 +45,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    const user = await supabase.auth.getUser().then(r => r.data.user)
-    setState({
-      user: user ? { id: user.id, email: user.email ?? '' } : { id: userId, email: '' },
-      profile: data ?? null,
-      loading: false,
-    })
+    try {
+      const [profileResult, userResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.auth.getUser(),
+      ])
+
+      const user = userResult.data.user
+      setState({
+        user: user ? { id: user.id, email: user.email ?? '' } : { id: userId, email: '' },
+        profile: profileResult.data ?? null,
+        loading: false,
+      })
+    } catch (err) {
+      console.error('fetchProfile error:', err)
+      setState({
+        user: { id: userId, email: '' },
+        profile: null,
+        loading: false,
+      })
+    }
   }
 
   async function refreshProfile() {

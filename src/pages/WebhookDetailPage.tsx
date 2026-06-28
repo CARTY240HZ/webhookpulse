@@ -16,7 +16,7 @@ import type { Webhook } from '../types'
 export default function WebhookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { webhooks, refresh } = useWebhooks()
+  const { webhooks, refresh, deleteWebhook, toggleWebhook } = useWebhooks()
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
   const isDiscord = webhook?.has_secret && !!webhook.discord_url
   const webhookType = isDiscord ? 'discord' : 'native'
@@ -108,11 +108,10 @@ export default function WebhookDetailPage() {
     if (!id || !confirm('Delete this webhook and all its logs? This cannot be undone.')) return
     setDeleting(true)
     try {
-      await supabase.from('webhooks').delete().eq('id', id)
-      await refresh()
+      await deleteWebhook(id)
       navigate('/dashboard')
-    } catch {
-      // ignore
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete webhook')
     } finally {
       setDeleting(false)
     }
@@ -120,11 +119,11 @@ export default function WebhookDetailPage() {
 
   const handleToggle = async () => {
     if (!webhook) return
-    await supabase
-      .from('webhooks')
-      .update({ is_active: !webhook.is_active, updated_at: new Date().toISOString() })
-      .eq('id', webhook.id)
-    await refresh()
+    try {
+      await toggleWebhook(webhook.id, webhook.is_active)
+    } catch (err: any) {
+      alert(err.message || 'Failed to toggle webhook')
+    }
   }
 
   const handleRevealToken = async () => {

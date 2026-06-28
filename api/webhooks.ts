@@ -33,7 +33,7 @@ export default async function handler(req: any, res: any) {
     return res.status(204).end()
   }
 
-  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE' && req.method !== 'PATCH') {
     return apiError(res, 405, 'METHOD_NOT_ALLOWED')
   }
 
@@ -153,6 +153,39 @@ export default async function handler(req: any, res: any) {
       }
 
       return res.status(201).json(response)
+    }
+
+    if (req.method === 'PATCH') {
+      // ─── UPDATE WEBHOOK (toggle) ───
+      const body = req.body || {}
+      const id = body.id || ''
+      if (!id || !isValidUUID(String(id))) {
+        return apiError(res, 400, 'INVALID_UUID')
+      }
+
+      const { data: webhook, error: findError } = await supabase
+        .from('webhooks')
+        .select('id, is_active')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (findError || !webhook) {
+        return apiError(res, 404, 'WEBHOOK_NOT_FOUND')
+      }
+
+      const { error: updateError } = await supabase
+        .from('webhooks')
+        .update({ is_active: !webhook.is_active, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        captureException(updateError)
+        return apiError(res, 500, 'WEBHOOK_UPDATE_FAILED')
+      }
+
+      return res.status(200).json({ success: true, is_active: !webhook.is_active })
     }
 
     // ─── DELETE WEBHOOK ───

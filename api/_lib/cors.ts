@@ -1,10 +1,17 @@
+const ALLOWED_ORIGINS = new Set([
+  'https://webhookpulse.vercel.app',
+  'https://webhookpulse.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+])
+
 export function getCorsHeaders(type: 'public' | 'private', reqOrigin?: string) {
   const appUrl = process.env.APP_URL || ''
   let origin = type === 'public' ? '*' : appUrl
   if (type === 'private' && !origin) {
-    origin = reqOrigin || ''
+    origin = (reqOrigin && ALLOWED_ORIGINS.has(reqOrigin)) ? reqOrigin : ''
     if (!origin) {
-      console.warn('APP_URL not set and no request origin — CORS private requests may fail')
+      console.warn('APP_URL not set and request origin not in whitelist — CORS private requests may fail')
     }
   }
   return {

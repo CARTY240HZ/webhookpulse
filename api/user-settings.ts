@@ -134,7 +134,7 @@ export default async function handler(req: any, res: any) {
 
         // Brute-force protection
         const bruteKey = `change_email:${user.id}`
-        if (!checkBruteLimit(bruteKey, 5, 600_000)) {
+        if (!await checkBruteLimit(bruteKey, 5, 600_000)) {
           return apiError(res, 429, 'TOO_MANY_REQUESTS')
         }
 
@@ -184,7 +184,7 @@ export default async function handler(req: any, res: any) {
 
         // Brute-force protection
         const bruteKey = `change_password:${user.id}`
-        if (!checkBruteLimit(bruteKey, 5, 600_000)) {
+        if (!await checkBruteLimit(bruteKey, 5, 600_000)) {
           return apiError(res, 429, 'TOO_MANY_REQUESTS')
         }
 
@@ -235,7 +235,7 @@ export default async function handler(req: any, res: any) {
 
       // Brute-force protection
       const bruteKey = `delete_account:${user.id}`
-      if (!checkBruteLimit(bruteKey, 3, 600_000)) {
+      if (!await checkBruteLimit(bruteKey, 3, 600_000)) {
         return apiError(res, 429, 'TOO_MANY_REQUESTS')
       }
 

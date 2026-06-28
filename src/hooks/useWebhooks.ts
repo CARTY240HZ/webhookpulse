@@ -60,25 +60,41 @@ export function useWebhooks() {
     }
 
     await fetchWebhooks()
-    // Return full response so callers can access native_url, discord_url, token
     return data as Webhook & { native_url: string; discord_url?: string; token?: string }
   }
 
   const deleteWebhook = async (id: string) => {
-    const { error: supaError } = await supabase.from('webhooks').delete().eq('id', id)
-    if (supaError) {
-      throw new Error(supaError.message)
+    const { data: authData } = await supabase.auth.getSession()
+    const session = authData?.session
+    if (!session) throw new Error('Not authenticated')
+
+    const res = await fetch(`${API_BASE}/api/webhooks?id=${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Failed to delete webhook' }))
+      throw new Error(data.error || 'Failed to delete webhook')
     }
     await fetchWebhooks()
   }
 
-  const toggleWebhook = async (id: string, isActive: boolean) => {
-    const { error: supaError } = await supabase
-      .from('webhooks')
-      .update({ is_active: !isActive, updated_at: new Date().toISOString() })
-      .eq('id', id)
-    if (supaError) {
-      throw new Error(supaError.message)
+  const toggleWebhook = async (id: string, _isActive: boolean) => {
+    const { data: authData } = await supabase.auth.getSession()
+    const session = authData?.session
+    if (!session) throw new Error('Not authenticated')
+
+    const res = await fetch(`${API_BASE}/api/webhooks`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ id }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Failed to toggle webhook' }))
+      throw new Error(data.error || 'Failed to toggle webhook')
     }
     await fetchWebhooks()
   }

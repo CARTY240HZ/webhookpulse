@@ -317,6 +317,10 @@ export default async function handler(req: any, res: any) {
       return discordError(res, 404, ERR_UNKNOWN_WEBHOOK)
     }
 
+    if (token.length !== storedToken.length) {
+      return discordError(res, 401, ERR_UNKNOWN_WEBHOOK)
+    }
+
     if (!crypto.timingSafeEqual(Buffer.from(token), Buffer.from(storedToken))) {
       return discordError(res, 401, ERR_UNKNOWN_WEBHOOK)
     }
@@ -441,7 +445,7 @@ export default async function handler(req: any, res: any) {
 
     // --- Rate limit (Discord: 5 req / 2 sec per webhook) ---
     if (ipAddress) {
-      const allowed = await checkRateLimit(supabase, ipAddress)
+      const allowed = await checkRateLimit(ipAddress)
       if (!allowed) {
         const resetAfter = '2'
         res.setHeader('Retry-After', resetAfter)

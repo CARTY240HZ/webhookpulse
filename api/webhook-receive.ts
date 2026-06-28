@@ -28,6 +28,7 @@ function filterHeaders(headers: Record<string, string>): Record<string, string> 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
 
+  const isDebug = process.env.NODE_ENV === 'development'
   const logs: string[] = []
   function log(msg: string) { logs.push(msg); console.log(msg) }
 
@@ -50,7 +51,7 @@ export default async function handler(req: any, res: any) {
     log(`5. Path: ${path}`)
     if (!path || !isValidPath(String(path))) {
       log('6. Path invalid, returning honeypot')
-      return res.status(200).json({ received: true, debug: logs })
+      return res.status(200).json({ received: true, ...(isDebug ? { debug: logs } : {}) })
     }
     log('6. Path valid')
 
@@ -96,13 +97,13 @@ export default async function handler(req: any, res: any) {
 
     if (findError || !webhook) {
       log('12. Webhook not found or error, returning honeypot')
-      return res.status(200).json({ received: true, debug: logs, reason: 'webhook_not_found' })
+      return res.status(200).json({ received: true, ...(isDebug ? { debug: logs } : {}), reason: 'webhook_not_found' })
     }
     log(`12. Webhook found: id=${webhook.id}, active=${webhook.is_active}`)
 
     if (!webhook.is_active) {
       log('13. Webhook inactive, returning honeypot')
-      return res.status(200).json({ received: true, debug: logs, reason: 'inactive' })
+      return res.status(200).json({ received: true, ...(isDebug ? { debug: logs } : {}), reason: 'inactive' })
     }
 
     // IP filtering
@@ -116,7 +117,7 @@ export default async function handler(req: any, res: any) {
       const ipCheck = checkIpAgainstRules(ipAddress, ipRules || [])
       log(`16. IP check: allowed=${ipCheck.allowed}`)
       if (!ipCheck.allowed) {
-        return res.status(200).json({ received: true, reason: 'ip_blocked', debug: logs })
+        return res.status(200).json({ received: true, reason: 'ip_blocked', ...(isDebug ? { debug: logs } : {}) })
       }
     }
 
@@ -143,18 +144,18 @@ export default async function handler(req: any, res: any) {
     }
     log(`18. Secret valid: ${secretValid}`)
     if (!secretValid) {
-      return res.status(200).json({ received: true, debug: logs, reason: 'invalid_secret' })
+      return res.status(200).json({ received: true, ...(isDebug ? { debug: logs } : {}), reason: 'invalid_secret' })
     }
 
     // Health check
     if (req.headers['x-health-check'] === 'true') {
-      return res.status(200).json({ received: true, health_check: true, debug: logs })
+      return res.status(200).json({ received: true, health_check: true, ...(isDebug ? { debug: logs } : {}) })
     }
 
     // Rate limiting
     if (ipAddress) {
       log('19. Checking rate limit')
-      const allowed = await checkRateLimit(supabase, ipAddress)
+      const allowed = await checkRateLimit(ipAddress)
       log(`20. Rate limit: allowed=${allowed}`)
       if (!allowed) {
         return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
@@ -199,7 +200,7 @@ export default async function handler(req: any, res: any) {
     }
 
     log(`25. Success: logId=${insertResult.data?.id}`)
-    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id, debug: logs })
+    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id, ...(isDebug ? { debug: logs } : {}) })
   } catch (err: any) {
     log(`ERROR: ${err.message}`)
     return apiError(res, 500, 'INTERNAL_ERROR')

@@ -1,4 +1,10 @@
+import { Redis } from '@upstash/redis'
 import crypto from 'crypto'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL || '',
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || '',
+})
 
 // ─── Security Headers ───
 export const SECURITY_HEADERS: Record<string, string> = {
@@ -39,7 +45,14 @@ export function getTrustedIp(req: any): string | null {
 const SSE_TOKEN_LIFETIME_MS = 5 * 60 * 1000 // 5 minutes
 
 function getSseSecret(): string {
-  return process.env.JWT_SECRET || process.env.WEBHOOK_SECRET_SALT || 'fallback-sse-secret-change-me'
+  const secret = process.env.JWT_SECRET || process.env.WEBHOOK_SECRET_SALT
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'SSE_SECRET must be defined and at least 32 characters. ' +
+      'Set JWT_SECRET or WEBHOOK_SECRET_SALT in your environment.'
+    )
+  }
+  return secret
 }
 
 function signPayload(payload: string): string {
@@ -78,28 +91,34 @@ export function validateSseToken(token: string): { userId: string; webhookId: st
   return { userId, webhookId }
 }
 
-// ─── Brute-Force Limiter (in-memory) ───
-interface BruteEntry { count: number; resetAt: number }
-const BRUTE_LIMITS = new Map<string, BruteEntry>()
+// ─── Brute-Force Limiter (Redis-backed) ───
+const BRUTE_MAX_ATTEMPTS = 5
+const BRUTE_WINDOW_MS = 600_000 // 10 minutes
 
-export function checkBruteLimit(
+export async function checkBruteLimit(
   key: string,
-  maxAttempts: number = 5,
-  windowMs: number = 600_000
-): boolean {
-  const now = Date.now()
-  const entry = BRUTE_LIMITS.get(key)
-  if (!entry || now > entry.resetAt) {
-    BRUTE_LIMITS.set(key, { count: 1, resetAt: now + windowMs })
-    return true
+  maxAttempts: number = BRUTE_MAX_ATTEMPTS,
+  windowMs: number = BRUTE_WINDOW_MS
+): Promise<boolean> {
+  const redisKey = `brute:${key}`
+  try {
+    const current = await redis.incr(redisKey)
+    if (current === 1) {
+      await redis.pexpire(redisKey, windowMs)
+    }
+    return current <= maxAttempts
+  } catch (err) {
+    console.error('Redis brute force error:', err)
+    return true // fail open on Redis error
   }
-  if (entry.count >= maxAttempts) return false
-  entry.count++
-  return true
 }
 
-export function resetBruteLimit(key: string): void {
-  BRUTE_LIMITS.delete(key)
+export async function resetBruteLimit(key: string): Promise<void> {
+  try {
+    await redis.del(`brute:${key}`)
+  } catch (err) {
+    console.error('Redis brute force reset error:', err)
+  }
 }
 
 // ─── Cache-Control for Private Responses ───

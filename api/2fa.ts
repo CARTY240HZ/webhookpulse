@@ -33,7 +33,7 @@ export default async function handler(req: any, res: any) {
 
       // Brute-force protection by user_id
       const bruteKey = `2fa_send:${user.id}`
-      if (!checkBruteLimit(bruteKey, 3, 600_000)) {
+      if (!await checkBruteLimit(bruteKey, 3, 600_000)) {
         return apiError(res, 429, 'TOO_MANY_REQUESTS')
       }
 
@@ -74,7 +74,7 @@ export default async function handler(req: any, res: any) {
 
       // Brute-force protection by user_id
       const bruteKey = `2fa_verify:${user.id}`
-      if (!checkBruteLimit(bruteKey, 5, 600_000)) {
+      if (!await checkBruteLimit(bruteKey, 5, 600_000)) {
         return apiError(res, 429, 'TOO_MANY_REQUESTS')
       }
 
@@ -107,7 +107,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // Reset brute limit on success
-      resetBruteLimit(bruteKey)
+      await resetBruteLimit(bruteKey)
 
       // Mark as verified
       const { error: updateError } = await supabase
