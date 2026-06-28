@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useTheme, setTheme } from './hooks/useTheme'
 import Layout from './components/Layout'
+import { SpeedInsights } from "@vercel/speed-insights/react"
 import ErrorBoundary from './components/ErrorBoundary'
 import ScrollToTop from './components/ScrollToTop'
 
@@ -66,6 +67,7 @@ function AppRoutes() {
           <Route path="/dashboard/settings" element={user ? <SettingsPage /> : <Navigate to="/login" />} />
         </Route>
       </Routes>
+      <SpeedInsights />
     </Suspense>
   )
 }
