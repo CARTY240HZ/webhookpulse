@@ -28,19 +28,31 @@ function filterHeaders(headers: Record<string, string>): Record<string, string> 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
 
-  if (req.method !== 'POST') {
-    return apiError(res, 405, 'METHOD_NOT_ALLOWED')
-  }
-
-  await honeypotDelay()
+  const logs: string[] = []
+  function log(msg: string) { logs.push(msg); console.log(msg) }
 
   try {
+    log('1. POST received')
+
+    if (req.method !== 'POST') {
+      log('2. Not POST, returning 405')
+      return apiError(res, 405, 'METHOD_NOT_ALLOWED')
+    }
+    log('2. Is POST')
+
+    await honeypotDelay()
+    log('3. Honeypot done')
+
     const supabase = getSupabase()
+    log('4. Supabase created')
 
     const path = req.query?.path || ''
+    log(`5. Path: ${path}`)
     if (!path || !isValidPath(String(path))) {
-      return res.status(200).json({ received: true })
+      log('6. Path invalid, returning honeypot')
+      return res.status(200).json({ received: true, debug: logs })
     }
+    log('6. Path valid')
 
     let rawBody: string = ''
     if (req.body) {
@@ -52,8 +64,9 @@ export default async function handler(req: any, res: any) {
         rawBody = JSON.stringify(req.body)
       }
     }
-
+    log(`7. Body size: ${rawBody.length}`)
     if (rawBody.length > MAX_BODY_SIZE) {
+      log('8. Body too large')
       return apiError(res, 413, 'PAYLOAD_TOO_LARGE')
     }
 
@@ -66,39 +79,50 @@ export default async function handler(req: any, res: any) {
       captureException(parseErr as Error)
       payload = {}
     }
+    log(`8. Payload parsed: ${!!payload}`)
 
     const ipAddress = getTrustedIp(req)
+    log(`9. IP: ${ipAddress}`)
 
     const pathStr = String(path)
+    log(`10. Querying webhooks for path: ${pathStr}`)
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
       .select('id, secret, is_active, url_path')
       .eq('url_path', pathStr)
       .single()
 
+    log(`11. Query result: data=${!!webhook}, error=${findError?.message || 'none'}`)
+
     if (findError || !webhook) {
-      return res.status(200).json({ received: true })
+      log('12. Webhook not found or error, returning honeypot')
+      return res.status(200).json({ received: true, debug: logs, reason: 'webhook_not_found' })
     }
+    log(`12. Webhook found: id=${webhook.id}, active=${webhook.is_active}`)
 
     if (!webhook.is_active) {
-      return res.status(200).json({ received: true })
+      log('13. Webhook inactive, returning honeypot')
+      return res.status(200).json({ received: true, debug: logs, reason: 'inactive' })
     }
 
     // IP filtering
     if (ipAddress) {
+      log('14. Checking IP rules')
       const { data: ipRules } = await supabase
         .from('ip_rules')
         .select('ip, action')
         .eq('webhook_id', webhook.id)
-
+      log(`15. IP rules: ${ipRules?.length || 0} rules`)
       const ipCheck = checkIpAgainstRules(ipAddress, ipRules || [])
+      log(`16. IP check: allowed=${ipCheck.allowed}`)
       if (!ipCheck.allowed) {
-        return res.status(200).json({ received: true, reason: 'ip_blocked' })
+        return res.status(200).json({ received: true, reason: 'ip_blocked', debug: logs })
       }
     }
 
     // Secret check
     const providedSecret = req.headers['x-webhook-secret'] || ''
+    log(`17. Secret check: provided=${!!providedSecret}, webhook_secret=${!!webhook.secret}`)
     let secretValid = false
     if (webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null') {
       try {
@@ -106,24 +130,28 @@ export default async function handler(req: any, res: any) {
           Buffer.from(String(providedSecret)),
           Buffer.from(String(webhook.secret))
         )
-      } catch {
+      } catch (err: any) {
+        log(`18. timingSafeEqual error: ${err.message}`)
         secretValid = false
       }
     } else {
       secretValid = true
     }
+    log(`18. Secret valid: ${secretValid}`)
     if (!secretValid) {
-      return res.status(200).json({ received: true })
+      return res.status(200).json({ received: true, debug: logs, reason: 'invalid_secret' })
     }
 
     // Health check
     if (req.headers['x-health-check'] === 'true') {
-      return res.status(200).json({ received: true, health_check: true })
+      return res.status(200).json({ received: true, health_check: true, debug: logs })
     }
 
     // Rate limiting
     if (ipAddress) {
+      log('19. Checking rate limit')
       const allowed = await checkRateLimit(supabase, ipAddress)
+      log(`20. Rate limit: allowed=${allowed}`)
       if (!allowed) {
         return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
       }
@@ -131,6 +159,7 @@ export default async function handler(req: any, res: any) {
 
     // Store log
     const filteredHeaders = filterHeaders(req.headers as Record<string, string>)
+    log('21. Inserting log')
 
     let insertResult = await supabase
       .from('webhook_logs')
@@ -143,7 +172,10 @@ export default async function handler(req: any, res: any) {
       .select('id')
       .single()
 
+    log(`22. Insert result: error=${insertResult.error?.message || 'none'}, data=${!!insertResult.data}`)
+
     if (insertResult.error && insertResult.error.code === '22P02') {
+      log('23. Retrying insert with null IP')
       insertResult = await supabase
         .from('webhook_logs')
         .insert({
@@ -154,6 +186,7 @@ export default async function handler(req: any, res: any) {
         })
         .select('id')
         .single()
+      log(`24. Retry result: error=${insertResult.error?.message || 'none'}`)
     }
 
     if (insertResult.error) {
@@ -161,9 +194,10 @@ export default async function handler(req: any, res: any) {
       return apiError(res, 500, 'WEBHOOK_STORE_FAILED')
     }
 
-    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id })
-  } catch (err) {
-    captureException(err as Error)
+    log(`25. Success: logId=${insertResult.data?.id}`)
+    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id, debug: logs })
+  } catch (err: any) {
+    log(`ERROR: ${err.message}`)
     return apiError(res, 500, 'INTERNAL_ERROR')
   }
 }
