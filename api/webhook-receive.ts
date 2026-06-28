@@ -1,52 +1,47 @@
 import { getSupabase } from './_lib/supabase.js'
 import { isValidPath } from './_lib/validate.js'
-import { setSecurityHeaders, honeypotDelay, getTrustedIp } from './_lib/security.js'
+import { setSecurityHeaders, honeypotDelay, getTrustedIp, setPrivateCache } from './_lib/security.js'
+import { checkIpAgainstRules } from './_lib/ipfilter.js'
+import { checkRateLimit } from './_lib/ratelimit.js'
+import { apiError } from './_lib/errors.js'
 import { captureException } from './_lib/sentry.js'
+import crypto from 'crypto'
+
+const MAX_BODY_SIZE = 256 * 1024
+
+const ALLOWED_HEADERS = new Set([
+  'content-type', 'user-agent', 'x-webhook-secret',
+  'x-vercel-forwarded-for', 'x-vercel-ip',
+  'accept-encoding', 'host', 'content-length',
+])
+
+function filterHeaders(headers: Record<string, string>): Record<string, string> {
+  const filtered: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    if (ALLOWED_HEADERS.has(key.toLowerCase())) {
+      filtered[key] = value
+    }
+  }
+  return filtered
+}
 
 export default async function handler(req: any, res: any) {
   setSecurityHeaders(res)
 
-  const logs: string[] = []
-  function log(msg: string) { logs.push(msg); console.log(msg) }
+  if (req.method !== 'POST') {
+    return apiError(res, 405, 'METHOD_NOT_ALLOWED')
+  }
+
+  await honeypotDelay()
 
   try {
-    log('1. Starting')
-    await honeypotDelay()
-    log('2. Honeypot done')
-    
     const supabase = getSupabase()
-    log('3. Supabase created')
 
     const path = req.query?.path || ''
-    log(`4. Path: ${path}`)
-    
     if (!path || !isValidPath(String(path))) {
-      return res.status(200).json({ received: true, debug: logs })
-    }
-    log('5. Path valid')
-
-    const pathStr = String(path)
-    const { data: webhook, error: findError } = await supabase
-      .from('webhooks')
-      .select('id, secret, is_active, url_path')
-      .eq('url_path', pathStr)
-      .single()
-    
-    log(`6. Query: webhook=${!!webhook}, error=${findError?.message || 'none'}`)
-
-    if (findError || !webhook) {
-      return res.status(200).json({ received: true, debug: logs, reason: 'not_found' })
-    }
-    log(`7. Webhook: id=${webhook.id}, active=${webhook.is_active}`)
-
-    if (!webhook.is_active) {
-      return res.status(200).json({ received: true, debug: logs, reason: 'inactive' })
+      return res.status(200).json({ received: true })
     }
 
-    const ipAddress = getTrustedIp(req)
-    log(`8. IP: ${ipAddress}`)
-
-    // Body handling
     let rawBody: string = ''
     if (req.body) {
       if (Buffer.isBuffer(req.body)) {
@@ -57,7 +52,10 @@ export default async function handler(req: any, res: any) {
         rawBody = JSON.stringify(req.body)
       }
     }
-    log(`9. Body size: ${rawBody.length}`)
+
+    if (rawBody.length > MAX_BODY_SIZE) {
+      return apiError(res, 413, 'PAYLOAD_TOO_LARGE')
+    }
 
     let payload: unknown = null
     try {
@@ -68,32 +66,104 @@ export default async function handler(req: any, res: any) {
       captureException(parseErr as Error)
       payload = {}
     }
-    log(`10. Payload parsed: ${!!payload}`)
 
-    const insertResult = await supabase
+    const ipAddress = getTrustedIp(req)
+
+    const pathStr = String(path)
+    const { data: webhook, error: findError } = await supabase
+      .from('webhooks')
+      .select('id, secret, is_active, url_path')
+      .eq('url_path', pathStr)
+      .single()
+
+    if (findError || !webhook) {
+      return res.status(200).json({ received: true })
+    }
+
+    if (!webhook.is_active) {
+      return res.status(200).json({ received: true })
+    }
+
+    // IP filtering
+    if (ipAddress) {
+      const { data: ipRules } = await supabase
+        .from('ip_rules')
+        .select('ip, action')
+        .eq('webhook_id', webhook.id)
+
+      const ipCheck = checkIpAgainstRules(ipAddress, ipRules || [])
+      if (!ipCheck.allowed) {
+        return res.status(200).json({ received: true, reason: 'ip_blocked' })
+      }
+    }
+
+    // Secret check
+    const providedSecret = req.headers['x-webhook-secret'] || ''
+    let secretValid = false
+    if (webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null') {
+      try {
+        secretValid = crypto.timingSafeEqual(
+          Buffer.from(String(providedSecret)),
+          Buffer.from(String(webhook.secret))
+        )
+      } catch {
+        secretValid = false
+      }
+    } else {
+      secretValid = true
+    }
+    if (!secretValid) {
+      return res.status(200).json({ received: true })
+    }
+
+    // Health check
+    if (req.headers['x-health-check'] === 'true') {
+      return res.status(200).json({ received: true, health_check: true })
+    }
+
+    // Rate limiting
+    if (ipAddress) {
+      const allowed = await checkRateLimit(supabase, ipAddress)
+      if (!allowed) {
+        return apiError(res, 429, 'RATE_LIMIT_EXCEEDED')
+      }
+    }
+
+    // Store log
+    const filteredHeaders = filterHeaders(req.headers as Record<string, string>)
+
+    let insertResult = await supabase
       .from('webhook_logs')
       .insert({
         webhook_id: webhook.id,
         payload: payload ?? {},
-        headers: { 'user-agent': req.headers['user-agent'] || '' },
+        headers: filteredHeaders,
         ip_address: ipAddress,
       })
       .select('id')
       .single()
-    
-    log(`11. Insert: error=${insertResult.error?.message || 'none'}, data=${!!insertResult.data}`)
 
-    if (insertResult.error) {
-      return res.status(500).json({ error: insertResult.error.message, debug: logs })
+    if (insertResult.error && insertResult.error.code === '22P02') {
+      insertResult = await supabase
+        .from('webhook_logs')
+        .insert({
+          webhook_id: webhook.id,
+          payload: payload ?? {},
+          headers: filteredHeaders,
+          ip_address: null,
+        })
+        .select('id')
+        .single()
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      logId: insertResult.data?.id,
-      debug: logs 
-    })
-  } catch (err: any) {
-    log(`ERROR: ${err.message}`)
-    return res.status(500).json({ error: err.message, stack: err.stack, debug: logs })
+    if (insertResult.error) {
+      captureException(insertResult.error)
+      return apiError(res, 500, 'WEBHOOK_STORE_FAILED')
+    }
+
+    return setPrivateCache(res).status(200).json({ success: true, logId: insertResult.data.id })
+  } catch (err) {
+    captureException(err as Error)
+    return apiError(res, 500, 'INTERNAL_ERROR')
   }
 }
