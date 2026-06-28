@@ -38,6 +38,8 @@ export default function DashboardPage() {
 
   const totalLogs = webhooks.reduce((acc, w) => acc + (w.log_count || 0), 0)
   const activeCount = webhooks.filter(w => w.is_active).length
+  const uptimeMs = webhooks.reduce((acc, w) => acc + (Date.now() - new Date(w.created_at).getTime()), 0)
+  const avgUptimeDays = webhooks.length > 0 ? Math.round(uptimeMs / webhooks.length / 86400000) : 0
 
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
@@ -71,7 +73,7 @@ export default function DashboardPage() {
             { icon: Zap, label: 'Total webhooks', value: webhooks.length, color: 'var(--accent)' },
             { icon: Activity, label: 'Active', value: activeCount, color: 'var(--success)' },
             { icon: BarChart3, label: 'Logs today', value: totalLogs.toLocaleString(), color: 'var(--info)' },
-            { icon: Clock, label: 'Uptime', value: '99.9%', color: 'var(--warning)' },
+            { icon: Clock, label: 'Avg age', value: `${avgUptimeDays}d`, color: 'var(--warning)' },
           ].map((stat) => (
             <div key={stat.label}
               className="rounded-xl p-5 border border-[var(--border)] card-hover"
