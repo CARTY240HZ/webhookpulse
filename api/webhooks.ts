@@ -130,8 +130,9 @@ export default async function handler(req: any, res: any) {
         .single()
 
       if (error) {
+        console.error('WEBHOOK_CREATE_SUPABASE_ERROR:', error)
         captureException(error)
-        return apiError(res, 500, 'WEBHOOK_CREATE_FAILED')
+        return apiError(res, 500, 'WEBHOOK_CREATE_FAILED: ' + (error.message || JSON.stringify(error)))
       }
 
       // Return URLs based on type (token only shown once — copy it immediately)
