@@ -124,12 +124,13 @@ export default async function handler(req: any, res: any) {
     const pathStr = String(path)
     const { data: webhook, error: findError } = await supabase
       .from('webhooks')
-      .select('id, secret, secret_hash, is_active, url_path')
+      .select('id, secret, is_active, url_path')
       .eq('url_path', pathStr)
       .single()
 
     // S10: If webhook doesn't exist or is inactive, return 200 anyway (honeypot)
     if (findError || !webhook) {
+      console.error('[webhook-receive] findError:', findError?.message, 'path:', pathStr)
       return res.status(200).json({ received: true })
     }
 
@@ -150,15 +151,11 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 7. Check secret (S2: HMAC-SHA256 constant-time verification)
+    // 7. Check secret (legacy: direct comparison)
     const providedSecret = req.headers['x-webhook-secret'] || ''
     let secretValid = false
     
-    if (webhook.secret_hash && String(webhook.secret_hash).trim() !== '') {
-      // New: hashed secret with timing-safe comparison
-      secretValid = verifySecret(String(providedSecret), String(webhook.secret_hash))
-    } else if (webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null') {
-      // Legacy: direct comparison (deprecated, migrate to secret_hash)
+    if (webhook.secret && String(webhook.secret).trim() !== '' && String(webhook.secret).trim() !== 'null') {
       secretValid = crypto.timingSafeEqual(
         Buffer.from(String(providedSecret)),
         Buffer.from(String(webhook.secret))
