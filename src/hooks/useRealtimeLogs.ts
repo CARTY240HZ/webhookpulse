@@ -13,7 +13,7 @@ export interface LogFilters {
   type?: 'native' | 'discord' | 'all'
 }
 
-function buildFilterQuery(filters: LogFilters): string {
+export function buildFilterQuery(filters: LogFilters): string {
   const params = new URLSearchParams()
   if (filters.q) params.set('q', filters.q)
   if (filters.ip) params.set('ip', filters.ip)
@@ -24,7 +24,7 @@ function buildFilterQuery(filters: LogFilters): string {
   return params.toString()
 }
 
-function logMatchesFilters(log: WebhookLog, filters: LogFilters, webhookType?: 'native' | 'discord'): boolean {
+export function logMatchesFilters(log: WebhookLog, filters: LogFilters, webhookType?: 'native' | 'discord'): boolean {
   if (filters.q) {
     const payloadText = JSON.stringify(log.payload).toLowerCase()
     if (!payloadText.includes(filters.q.toLowerCase())) return false
@@ -37,7 +37,7 @@ function logMatchesFilters(log: WebhookLog, filters: LogFilters, webhookType?: '
   return true
 }
 
-function getActiveFilterCount(filters: LogFilters): number {
+export function getActiveFilterCount(filters: LogFilters): number {
   let count = 0
   if (filters.q) count++
   if (filters.ip) count++

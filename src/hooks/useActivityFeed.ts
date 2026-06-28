@@ -16,7 +16,7 @@ export interface LogItem {
 
 const MAX_LOGS = 20
 
-function mapLogToItem(
+export function mapLogToItem(
   log: WebhookLog,
   webhookMap: Map<string, Webhook>,
   isNew = false
