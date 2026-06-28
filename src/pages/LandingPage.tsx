@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity, Shield, Zap, Globe, ArrowRight, Webhook, Lock, BarChart3, Check, Terminal, Send, Eye, Copy } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
@@ -93,19 +93,34 @@ export default function LandingPage() {
   const { user } = useAuth()
   const isAuthenticated = !!user
   const heroRef = useRef<HTMLDivElement>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const mousePos = useRef({ x: 0, y: 0 })
+  const rafId = useRef<number>(0)
 
   useEffect(() => {
+    const el = heroRef.current
+    if (!el) return
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (!heroRef.current) return
-      const rect = heroRef.current.getBoundingClientRect()
-      setMousePos({
+      const rect = el.getBoundingClientRect()
+      mousePos.current = {
         x: (e.clientX - rect.left - rect.width / 2) / 30,
         y: (e.clientY - rect.top - rect.height / 2) / 30,
-      })
+      }
+      // Batch DOM updates via requestAnimationFrame
+      if (!rafId.current) {
+        rafId.current = requestAnimationFrame(() => {
+          el.style.setProperty('--mouse-x', `${mousePos.current.x}px`)
+          el.style.setProperty('--mouse-y', `${mousePos.current.y}px`)
+          rafId.current = 0
+        })
+      }
     }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
+
+    el.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      el.removeEventListener('mousemove', handleMouseMove)
+      if (rafId.current) cancelAnimationFrame(rafId.current)
+    }
   }, [])
 
   const exampleCode = `curl -X POST "https://webhookpulse.vercel.app/api/webhook-receive?path=your-path" \\
@@ -120,9 +135,9 @@ export default function LandingPage() {
 
   const features = [
     { icon: Zap, title: 'Real-time logs', desc: 'See incoming payloads the moment they arrive. No refresh needed. Supabase Realtime pushes updates instantly.' },
-    { icon: Shield, title: 'Secret validation', desc: 'Protect endpoints with optional secrets. HMAC-SHA256 verification rejects unauthorized requests silently.' },
+    { icon: Shield, title: 'Secret validation', desc: 'Protect endpoints with optional secrets. bcrypt verification rejects unauthorized requests silently.' },
     { icon: Globe, title: 'Generic receiver', desc: 'Discord, Slack, or custom JSON services. Any payload accepted. Native URL + Discord re-forwarding.' },
-    { icon: Lock, title: 'IP filtering', desc: 'Block or allow specific IPs per webhook. Rate limiting with token-bucket algorithm.' },
+    { icon: Lock, title: 'IP filtering', desc: 'Block or allow specific IPs per webhook. Rate limiting with token-bucket algorithm via Redis.' },
     { icon: BarChart3, title: 'Analytics', desc: 'Stats per webhook: request volume, response times, error rates. Visual charts and activity timeline.' },
     { icon: Webhook, title: 'Roblox integration', desc: 'Native ZEX script support. Transmit player data, server info, and events directly from Roblox.' },
   ]
@@ -173,17 +188,17 @@ export default function LandingPage() {
               backgroundSize: '60px 60px',
             }} />
 
-          {/* Floating orbs with mouse parallax */}
+          {/* Floating orbs with CSS custom property parallax */}
           <FloatingOrb className="w-[500px] h-[500px] top-1/4 left-1/4 opacity-20"
             style={{
               background: 'radial-gradient(circle, rgba(212,232,58,0.15) 0%, transparent 70%)',
-              transform: `translate(${mousePos.x * -1}px, ${mousePos.y * -1}px)`,
+              transform: 'translate(calc(var(--mouse-x, 0px) * -1), calc(var(--mouse-y, 0px) * -1))',
               transition: 'transform 0.3s ease-out',
             }} />
           <FloatingOrb className="w-[400px] h-[400px] bottom-1/4 right-1/4 opacity-15"
             style={{
               background: 'radial-gradient(circle, rgba(212,232,58,0.1) 0%, transparent 70%)',
-              transform: `translate(${mousePos.x * 0.5}px, ${mousePos.y * 0.5}px)`,
+              transform: 'translate(calc(var(--mouse-x, 0px) * 0.5), calc(var(--mouse-y, 0px) * 0.5))',
               transition: 'transform 0.3s ease-out',
             }} />
 

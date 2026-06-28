@@ -1,4 +1,4 @@
-import { useSse } from '../hooks/useSse'
+import { useRealtimeWebhook } from '../hooks/useRealtimeWebhook'
 import { Radio } from 'lucide-react'
 
 interface SseStatusProps {
@@ -6,10 +6,7 @@ interface SseStatusProps {
 }
 
 export default function SseStatus({ webhookId }: SseStatusProps) {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const { connected, lastEvent } = useSse(
-    `${baseUrl}/api/sse-logs?webhookId=${webhookId}`,
-  )
+  const { connected, lastEvent } = useRealtimeWebhook(webhookId)
 
   return (
     <div className="flex items-center gap-2 text-xs text-text-secondary">

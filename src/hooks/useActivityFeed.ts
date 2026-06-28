@@ -52,6 +52,10 @@ export function useActivityFeed() {
   const [isPaused, setIsPaused] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const isNewTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const isPausedRef = useRef(isPaused)
+  const pausedBufferRef = useRef<LogItem[]>([])
+
+  isPausedRef.current = isPaused
 
   useEffect(() => {
     let cancelled = false
@@ -103,6 +107,13 @@ export function useActivityFeed() {
             if (!webhookIds.includes(newLog.webhook_id)) return
 
             const item = mapLogToItem(newLog, webhookMap, true)
+
+            if (isPausedRef.current) {
+              // Buffer incoming logs while paused
+              pausedBufferRef.current = [item, ...pausedBufferRef.current].slice(0, MAX_LOGS)
+              return
+            }
+
             setLogs((prev) => {
               const next = [item, ...prev].slice(0, MAX_LOGS)
               return next
@@ -137,8 +148,21 @@ export function useActivityFeed() {
         clearTimeout(timer)
       )
       isNewTimersRef.current = {}
+      pausedBufferRef.current = []
     }
   }, [])
+
+  // Flush buffer when unpaused
+  useEffect(() => {
+    if (!isPaused && pausedBufferRef.current.length > 0) {
+      const buffered = pausedBufferRef.current
+      pausedBufferRef.current = []
+      setLogs((prev) => {
+        const merged = [...buffered, ...prev].slice(0, MAX_LOGS)
+        return merged
+      })
+    }
+  }, [isPaused])
 
   return { logs, isPaused, setIsPaused, isConnected }
 }

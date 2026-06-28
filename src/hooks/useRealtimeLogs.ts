@@ -56,6 +56,7 @@ export function useRealtimeLogs(webhookId: string | null, webhookType?: 'native'
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState<LogFilters>({})
   const [totalCount, setTotalCount] = useState(0)
+  const [error, setError] = useState<string | null>(null)
   const filtersRef = useRef(filters)
 
   filtersRef.current = filters
@@ -64,54 +65,68 @@ export function useRealtimeLogs(webhookId: string | null, webhookType?: 'native'
 
   const fetchLogs = useCallback(async (pageNum: number, append: boolean) => {
     if (!webhookId) return
+    setError(null)
 
-    const currentFilters = filtersRef.current
-    const activeFilterCount = getActiveFilterCount(currentFilters)
+    try {
+      const currentFilters = filtersRef.current
+      const activeFilterCount = getActiveFilterCount(currentFilters)
 
-    if (activeFilterCount > 0) {
-      // Use backend API for filtered queries
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-      if (!token) return
+      if (activeFilterCount > 0) {
+        // Use backend API for filtered queries
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token
+        if (!token) return
 
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-      const query = buildFilterQuery(currentFilters)
-      const res = await fetch(
-        `${baseUrl}/api/webhook-logs?webhookId=${webhookId}&page=${pageNum}&limit=${PAGE_SIZE}&${query}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      if (!res.ok) return
-      const data = await res.json()
-      const newLogs = (data.logs || []) as WebhookLog[]
-      const total = data.total || 0
-      if (append) {
-        setLogs((prev) => [...prev, ...newLogs])
-      } else {
-        setLogs(newLogs)
-      }
-      setHasMore((pageNum - 1) * PAGE_SIZE + newLogs.length < total)
-      setTotalCount(total)
-    } else {
-      // Use direct Supabase query for unfiltered queries
-      const from = (pageNum - 1) * PAGE_SIZE
-      const to = from + PAGE_SIZE - 1
-
-      const { data, error } = await supabase
-        .from('webhook_logs')
-        .select('*')
-        .eq('webhook_id', webhookId)
-        .order('created_at', { ascending: false })
-        .range(from, to)
-
-      if (!error && data) {
-        const newLogs = data as WebhookLog[]
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+        const query = buildFilterQuery(currentFilters)
+        const res = await fetch(
+          `${baseUrl}/api/webhook-logs?webhookId=${webhookId}&page=${pageNum}&limit=${PAGE_SIZE}&${query}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Failed to fetch logs' }))
+          throw new Error(errData.error || 'Failed to fetch logs')
+        }
+        const data = await res.json()
+        const newLogs = (data.logs || []) as WebhookLog[]
+        const total = data.total || 0
         if (append) {
           setLogs((prev) => [...prev, ...newLogs])
         } else {
           setLogs(newLogs)
         }
-        setHasMore(newLogs.length === PAGE_SIZE)
-        setTotalCount(0)
+        setHasMore((pageNum - 1) * PAGE_SIZE + newLogs.length < total)
+        setTotalCount(total)
+      } else {
+        // Use direct Supabase query for unfiltered queries
+        const from = (pageNum - 1) * PAGE_SIZE
+        const to = from + PAGE_SIZE - 1
+
+        const { data, error } = await supabase
+          .from('webhook_logs')
+          .select('*')
+          .eq('webhook_id', webhookId)
+          .order('created_at', { ascending: false })
+          .range(from, to)
+
+        if (error) throw new Error(error.message)
+        if (data) {
+          const newLogs = data as WebhookLog[]
+          if (append) {
+            setLogs((prev) => [...prev, ...newLogs])
+          } else {
+            setLogs(newLogs)
+          }
+          setHasMore(newLogs.length === PAGE_SIZE)
+          setTotalCount(0)
+        }
+      }
+    } catch (err: any) {
+      console.error('fetchLogs error:', err)
+      setError(err.message || 'Failed to fetch logs')
+      if (!append) {
+        setLogs([])
+        setHasMore(false)
       }
     }
   }, [webhookId])
@@ -123,10 +138,12 @@ export function useRealtimeLogs(webhookId: string | null, webhookType?: 'native'
       setHasMore(true)
       setPage(1)
       setTotalCount(0)
+      setError(null)
       return
     }
 
     setLoading(true)
+    setError(null)
     setPage(1)
 
     fetchLogs(1, false).then(() => setLoading(false))
@@ -220,5 +237,6 @@ export function useRealtimeLogs(webhookId: string | null, webhookType?: 'native'
     activeFilterCount,
     totalCount,
     hasActiveFilters,
+    error,
   }
 }

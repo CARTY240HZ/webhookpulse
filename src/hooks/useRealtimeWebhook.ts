@@ -1,28 +1,25 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-export interface SseMessage {
+export interface RealtimeMessage {
   [key: string]: unknown
 }
 
-interface SseCallbacks {
-  onMessage?: (data: SseMessage) => void
+interface RealtimeCallbacks {
+  onMessage?: (data: RealtimeMessage) => void
   onError?: (error: Error) => void
   onConnect?: () => void
 }
 
-export function useSse(_url: string, callbacks: SseCallbacks = {}) {
+export function useRealtimeWebhook(webhookId: string | null, callbacks: RealtimeCallbacks = {}) {
   const [connected, setConnected] = useState(false)
-  const [lastEvent, setLastEvent] = useState<SseMessage | null>(null)
+  const [lastEvent, setLastEvent] = useState<RealtimeMessage | null>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const callbacksRef = useRef(callbacks)
   callbacksRef.current = callbacks
 
-  useEffect(() => {
-    // Extract webhookId from the URL (e.g. /api/sse-logs?webhookId=xxx)
-    const urlObj = new URL(_url, window.location.origin)
-    const webhookId = urlObj.searchParams.get('webhookId')
-    if (!webhookId) return
+  const connect = useCallback(() => {
+    if (!webhookId || channelRef.current) return
 
     const channel = supabase
       .channel(`webhook-logs-${webhookId}`)
@@ -35,7 +32,7 @@ export function useSse(_url: string, callbacks: SseCallbacks = {}) {
           filter: `webhook_id=eq.${webhookId}`,
         },
         (payload: any) => {
-          const data = payload.new as SseMessage
+          const data = payload.new as RealtimeMessage
           setLastEvent(data)
           callbacksRef.current.onMessage?.(data)
         }
@@ -51,13 +48,27 @@ export function useSse(_url: string, callbacks: SseCallbacks = {}) {
       })
 
     channelRef.current = channel
+  }, [webhookId])
 
-    return () => {
-      supabase.removeChannel(channel)
+  const disconnect = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
       channelRef.current = null
       setConnected(false)
     }
-  }, [_url])
+  }, [])
 
-  return { connected, lastEvent, connect: () => {}, disconnect: () => {} }
+  useEffect(() => {
+    connect()
+    return disconnect
+  }, [connect, disconnect])
+
+  return { connected, lastEvent, connect, disconnect }
+}
+
+// Backward compatibility alias
+export function useSse(url: string, callbacks: RealtimeCallbacks = {}) {
+  const urlObj = new URL(url, typeof window !== 'undefined' ? window.location.href : '')
+  const webhookId = urlObj.searchParams.get('webhookId') || ''
+  return useRealtimeWebhook(webhookId || null, callbacks)
 }
