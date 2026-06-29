@@ -42,7 +42,7 @@ function CopyUrl({ url, label }: { url: string; label: string }) {
 export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate, onReveal }: WebhookCardProps) {
   const type = webhook.type || 'native'
   const typeLabel = type === 'discord' ? 'Discord' : 'Native'
-  const typeColor = type === 'discord' ? 'bg-blue-500/10 text-blue-400' : 'bg-[var(--accent)]/10 text-[var(--accent)]'
+  const typeColor = type === 'discord' ? 'bg-info/10 text-info' : 'bg-[var(--accent)]/10 text-[var(--accent)]'
 
   return (
     <div className="group relative rounded-xl overflow-hidden transition-all duration-300 ease-[var(--ease-smooth)] border border-[var(--border)] hover:border-[var(--border-hover)] hover:-translate-y-0.5"

@@ -36,18 +36,18 @@ function tokenizeJson(json: string): Token[] {
         while (i < json.length && json[i] >= '0' && json[i] <= '9') i++
       }
       const text = json.slice(start, i)
-      tokens.push({ text, className: 'text-orange-400' })
+      tokens.push({ text, className: 'text-warning' })
       continue
     }
 
     // Boolean literals
     if (json.slice(i, i + 4) === 'true') {
-      tokens.push({ text: 'true', className: 'text-purple-400' })
+      tokens.push({ text: 'true', className: 'text-info' })
       i += 4
       continue
     }
     if (json.slice(i, i + 5) === 'false') {
-      tokens.push({ text: 'false', className: 'text-purple-400' })
+      tokens.push({ text: 'false', className: 'text-info' })
       i += 5
       continue
     }

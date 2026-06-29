@@ -27,8 +27,8 @@ function getPasswordStrength(password: string): PasswordStrength {
   const map: Record<number, { label: string; color: string }> = {
     0: { label: 'Too weak', color: 'bg-danger' },
     1: { label: 'Weak', color: 'bg-danger' },
-    2: { label: 'Fair', color: 'bg-orange-400' },
-    3: { label: 'Good', color: 'bg-yellow-400' },
+    2: { label: 'Fair', color: 'bg-warning' },
+    3: { label: 'Good', color: 'bg-success' },
     4: { label: 'Strong', color: 'bg-success' },
   }
   return { score, ...map[score] }

@@ -22,7 +22,7 @@ function getRelativeTime(dateStr: string): string {
 function StatusDot({ status }: { status: LogItem['status'] }) {
   const colorMap = {
     success: 'bg-success',
-    honeypot: 'bg-yellow-500',
+    honeypot: 'bg-warning',
     rate_limited: 'bg-danger',
   }
   return <span className={`inline-block w-2 h-2 rounded-full ${colorMap[status]}`} />
@@ -34,7 +34,7 @@ function TypeBadge({ type }: { type: LogItem['type'] }) {
     <span
       className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
         isDiscord
-          ? 'bg-blue-500/10 text-blue-400'
+          ? 'bg-info/10 text-info'
           : 'bg-accent/10 text-accent'
       }`}
     >

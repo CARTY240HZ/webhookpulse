@@ -92,7 +92,7 @@ export default function WebhookDetailPage() {
   }
 
   const typeLabel = isDiscord ? 'Discord' : 'Native'
-  const typeColor = isDiscord ? 'bg-blue-500/10 text-blue-400' : 'bg-accent/10 text-accent'
+  const typeColor = isDiscord ? 'bg-info/10 text-info' : 'bg-accent/10 text-accent'
 
   const handleCopy = async (url: string) => {
     try {

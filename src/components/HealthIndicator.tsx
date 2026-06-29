@@ -9,26 +9,26 @@ interface HealthIndicatorProps {
 function statusDotClass(status: string | null): string {
   switch (status) {
     case 'online':
-      return 'bg-green-500'
+      return 'bg-success'
     case 'degraded':
-      return 'bg-yellow-500'
+      return 'bg-warning'
     case 'offline':
-      return 'bg-red-500'
+      return 'bg-danger'
     default:
-      return 'bg-gray-400'
+      return 'bg-text-muted'
   }
 }
 
 function statusBadgeClass(status: string | null): string {
   switch (status) {
     case 'online':
-      return 'bg-green-500/10 text-green-400'
+      return 'bg-success/10 text-success'
     case 'degraded':
-      return 'bg-yellow-500/10 text-yellow-400'
+      return 'bg-warning/10 text-warning'
     case 'offline':
-      return 'bg-red-500/10 text-red-400'
+      return 'bg-danger/10 text-danger'
     default:
-      return 'bg-gray-500/10 text-gray-400'
+      return 'bg-text-muted/10 text-text-muted'
   }
 }
 
