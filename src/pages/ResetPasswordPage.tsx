@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Activity, Loader2, AlertCircle, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react'
+import { Activity, AlertCircle, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react'
+import { Button } from '../components/ui'
 
 interface FormErrors {
   password?: string
@@ -106,12 +107,9 @@ export default function ResetPasswordPage() {
             <p className="text-sm text-text-secondary mb-6">
               Your password has been reset successfully. You can now sign in with your new password.
             </p>
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full px-4 py-2.5 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
-            >
+            <Button onClick={() => navigate('/login')} className="w-full">
               Sign in
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -197,14 +195,9 @@ export default function ResetPasswordPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            <Button type="submit" disabled={loading} isLoading={loading} className="w-full">
               {loading ? 'Updating...' : 'Update password'}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

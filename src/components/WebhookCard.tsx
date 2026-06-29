@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Copy, Trash2, PauseCircle, PlayCircle, Zap, ExternalLink, Clock, Eye } from 'lucide-react'
 import type { Webhook } from '../types'
 import HealthIndicator from './HealthIndicator'
+import { Button, Badge, Card } from '../components/ui'
 
 interface WebhookCardProps {
   webhook: Webhook
@@ -42,12 +43,10 @@ function CopyUrl({ url, label }: { url: string; label: string }) {
 export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate, onReveal }: WebhookCardProps) {
   const type = webhook.type || 'native'
   const typeLabel = type === 'discord' ? 'Discord' : 'Native'
-  const typeColor = type === 'discord' ? 'bg-info/10 text-info' : 'bg-[var(--accent)]/10 text-[var(--accent)]'
 
   return (
-    <div className="group relative rounded-xl overflow-hidden transition-all duration-300 ease-[var(--ease-smooth)] border border-[var(--border)] hover:border-[var(--border-hover)] hover:-translate-y-0.5"
+    <Card variant="elevated" hover={true} className="group relative overflow-hidden"
       style={{
-        background: 'var(--bg-elevated)',
         boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)',
       }}
     >
@@ -78,21 +77,19 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate, o
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${typeColor}`}>
+            <Badge variant={type === 'discord' ? 'info' : 'accent'} className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider">
               {typeLabel}
-            </span>
+            </Badge>
             {webhook.is_active ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider"
-                style={{ background: 'rgba(74,222,128,0.1)', color: 'var(--success)' }}>
+              <Badge variant="success" className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--success)' }} />
                 Active
-              </span>
+              </Badge>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider"
-                style={{ background: 'rgba(248,113,113,0.1)', color: 'var(--danger)' }}>
+              <Badge variant="danger" className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--danger)' }} />
                 Inactive
-              </span>
+              </Badge>
             )}
             <HealthIndicator webhookId={webhook.id} />
           </div>
@@ -150,55 +147,34 @@ export default function WebhookCard({ webhook, onDelete, onToggle, onNavigate, o
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggle(webhook.id, webhook.is_active) }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] hover:border-[var(--border-hover)] transition-all duration-200"
-            style={{ background: 'var(--bg)' }}
-            title={webhook.is_active ? 'Pause' : 'Resume'}
-          >
+          <Button onClick={(e) => { e.stopPropagation(); onToggle(webhook.id, webhook.is_active) }} variant="secondary" size="sm"
+            title={webhook.is_active ? 'Pause' : 'Resume'}>
             {webhook.is_active ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
             {webhook.is_active ? 'Pause' : 'Resume'}
-          </button>
+          </Button>
           {onNavigate && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onNavigate(webhook.id) }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
-            >
+            <Button onClick={(e) => { e.stopPropagation(); onNavigate(webhook.id) }} variant="ghost" size="sm" className="text-[var(--accent)] hover:text-[var(--accent-hover)]">
               <ExternalLink className="w-4 h-4" />
               View
-            </button>
+            </Button>
           )}
           {type === 'discord' && onReveal && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onReveal(webhook.id, webhook.name) }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] hover:border-[var(--border-hover)] transition-all duration-200"
-              style={{ background: 'var(--bg)' }}
-              title="Reveal Discord URL"
-            >
+            <Button onClick={(e) => { e.stopPropagation(); onReveal(webhook.id, webhook.name) }} variant="secondary" size="sm"
+              title="Reveal Discord URL">
               <Eye className="w-4 h-4" />
               Reveal URL
-            </button>
+            </Button>
           )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(webhook.id) }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 ml-auto"
-            style={{ background: 'rgba(248,113,113,0.08)', color: 'var(--danger)' }}
-            onMouseEnter={(e) => {
-              (e.target as HTMLElement).style.background = 'rgba(248,113,113,0.15)'
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLElement).style.background = 'rgba(248,113,113,0.08)'
-            }}
-          >
+          <Button onClick={(e) => { e.stopPropagation(); onDelete(webhook.id) }} variant="danger" size="sm" className="ml-auto">
             <Trash2 className="w-4 h-4" />
             Delete
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Hover glow overlay */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
         style={{ boxShadow: 'inset 0 0 60px rgba(212,232,58,0.03)' }} />
-    </div>
+    </Card>
   )
 }

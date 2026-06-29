@@ -12,11 +12,12 @@ import IpRulesModal from '../components/IpRulesModal'
 import SseStatus from '../components/SseStatus'
 import { useVirtualList } from '../hooks/useVirtualList'
 import type { Webhook } from '../types'
+import { Button, Badge, Card } from '../components/ui'
 
 export default function WebhookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { webhooks, refresh, deleteWebhook, toggleWebhook } = useWebhooks()
+  const { webhooks, deleteWebhook, toggleWebhook } = useWebhooks()
   const webhook = webhooks.find((w) => w.id === id) as Webhook | undefined
   const isDiscord = webhook?.type === 'discord'
   const webhookType = isDiscord ? 'discord' : 'native'
@@ -92,7 +93,6 @@ export default function WebhookDetailPage() {
   }
 
   const typeLabel = isDiscord ? 'Discord' : 'Native'
-  const typeColor = isDiscord ? 'bg-info/10 text-info' : 'bg-accent/10 text-accent'
 
   const handleCopy = async (url: string) => {
     try {
@@ -227,16 +227,13 @@ export default function WebhookDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-1.5 text-sm text-danger hover:text-danger/80 transition-colors"
-        >
+        <Button onClick={handleSignOut} variant="danger-soft" size="sm">
           <LogOut className="w-4 h-4" />
           Sign out
-        </button>
+        </Button>
       </div>
 
-      <div className="bg-surface border border-border rounded p-6">
+      <Card variant="default" className="p-6">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-3">
             <Activity className="w-5 h-5 text-accent" />
@@ -248,25 +245,14 @@ export default function WebhookDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 mb-4">
-            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${typeColor}`}>
-              {typeLabel}
-            </span>
+            <Badge variant={isDiscord ? "info" : "accent"}>{typeLabel}</Badge>
             {webhook.is_active ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-success/10 text-success">
-                <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                Active
-              </span>
+              <Badge variant="success"><span className="w-1.5 h-1.5 rounded-full bg-success" />Active</Badge>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium bg-danger/10 text-danger">
-                <span className="w-1.5 h-1.5 rounded-full bg-danger" />
-                Inactive
-              </span>
+              <Badge variant="danger"><span className="w-1.5 h-1.5 rounded-full bg-danger" />Inactive</Badge>
             )}
             {ipRules.length > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-accent/10 text-accent">
-                <Shield className="w-3 h-3" />
-                IP
-              </span>
+              <Badge variant="accent"><Shield className="w-3 h-3" />IP</Badge>
             )}
             <SseStatus webhookId={webhook.id} />
           </div>
@@ -279,13 +265,10 @@ export default function WebhookDetailPage() {
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
                   Native
                 </span>
-                <button
-                  onClick={() => handleCopy(webhook.native_url!)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
-                >
+                <Button onClick={() => handleCopy(webhook.native_url!)} variant="ghost" size="sm" className="text-accent hover:text-accent-hover p-1">
                   <Copy className="w-3.5 h-3.5" />
                   {copied ? 'Copied' : 'Copy'}
-                </button>
+                </Button>
               </div>
               <code className="block text-sm text-text-secondary truncate">{webhook.native_url}</code>
             </div>
@@ -298,13 +281,10 @@ export default function WebhookDetailPage() {
                 <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
                   Discord
                 </span>
-                <button
-                  onClick={() => handleCopy(webhook.discord_url!)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
-                >
+                <Button onClick={() => handleCopy(webhook.discord_url!)} variant="ghost" size="sm" className="text-accent hover:text-accent-hover p-1">
                   <Copy className="w-3.5 h-3.5" />
                   {copied ? 'Copied' : 'Copy'}
-                </button>
+                </Button>
               </div>
               <code className="block text-sm text-text-secondary truncate">{webhook.discord_url}</code>
             </div>
@@ -316,13 +296,10 @@ export default function WebhookDetailPage() {
               {!revealedToken ? (
                 <>
                   {!showTokenReveal ? (
-                    <button
-                      onClick={() => { setShowTokenReveal(true); setTokenError(null) }}
-                      className="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
-                    >
+                    <Button onClick={() => { setShowTokenReveal(true); setTokenError(null) }} variant="ghost" size="sm" className="text-accent hover:text-accent-hover">
                       <Eye className="w-4 h-4" />
                       Want to see your token?
-                    </button>
+                    </Button>
                   ) : (
                     <div className="space-y-2">
                       <p className="text-xs text-text-secondary">Enter your password to reveal the token:</p>
@@ -344,13 +321,9 @@ export default function WebhookDetailPage() {
                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
-                        <button
-                          onClick={handleRevealToken}
-                          disabled={revealing || !tokenPassword}
-                          className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-                        >
+                        <Button onClick={handleRevealToken} disabled={revealing || !tokenPassword} isLoading={revealing} size="sm">
                           {revealing ? 'Verifying...' : 'Reveal'}
-                        </button>
+                        </Button>
                       </div>
                       {tokenError && (
                         <p className="text-xs text-danger">{tokenError}</p>
@@ -364,13 +337,10 @@ export default function WebhookDetailPage() {
                     <span className="text-[10px] uppercase tracking-wider text-text-secondary font-semibold">
                       Token
                     </span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(revealedToken)}
-                      className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent-hover transition-colors"
-                    >
+                    <Button onClick={() => navigator.clipboard.writeText(revealedToken)} variant="ghost" size="sm" className="text-accent hover:text-accent-hover p-1">
                       <Copy className="w-3.5 h-3.5" />
                       Copy
-                    </button>
+                    </Button>
                   </div>
                   <code className="block text-sm text-text-secondary truncate">{revealedToken}</code>
                 </div>
@@ -379,22 +349,14 @@ export default function WebhookDetailPage() {
           )}
 
           <div className="flex items-center gap-3">
-          <button
-            onClick={handleToggle}
-            className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"
-          >
-            {webhook.is_active ? 'Pause' : 'Resume'}
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium bg-danger/10 text-danger hover:bg-danger/20 transition-colors disabled:opacity-50"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
-      </div>
+            <Button onClick={handleToggle} variant="secondary" size="sm">
+              {webhook.is_active ? 'Pause' : 'Resume'}
+            </Button>
+            <Button onClick={handleDelete} disabled={deleting} isLoading={deleting} variant="danger" leftIcon={<Trash2 className="w-4 h-4" />}>
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </Card>
 
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -408,10 +370,7 @@ export default function WebhookDetailPage() {
           </div>
           {!logsLoading && logs.length > 0 && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleSelectAll}
-                className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
-              >
+              <Button onClick={handleSelectAll} variant="ghost" size="sm">
                 {allSelected ? (
                   <CheckSquare className="w-4 h-4 text-accent" />
                 ) : someSelected ? (
@@ -420,40 +379,21 @@ export default function WebhookDetailPage() {
                   <Square className="w-4 h-4" />
                 )}
                 {allSelected ? 'Deselect all' : 'Select all'}
-              </button>
+              </Button>
               {selectedIds.size > 0 && (
-                <button
-                  onClick={handleDeleteSelected}
-                  disabled={batchDeleting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-danger/10 text-danger hover:bg-danger/20 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
+                <Button onClick={handleDeleteSelected} disabled={batchDeleting} isLoading={batchDeleting} variant="danger" size="sm" leftIcon={<Trash2 className="w-3.5 h-3.5" />}>
                   Delete {selectedIds.size}
-                </button>
+                </Button>
               )}
-              <button
-                onClick={handleDeleteAll}
-                disabled={batchDeleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-danger/10 text-danger hover:bg-danger/20 transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
+              <Button onClick={handleDeleteAll} disabled={batchDeleting} isLoading={batchDeleting} variant="danger" size="sm" leftIcon={<Trash2 className="w-3.5 h-3.5" />}>
                 Delete all
-              </button>
-              <button
-                onClick={handleExport}
-                disabled={exporting || logs.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
-              >
-                <Download className="w-3.5 h-3.5" />
+              </Button>
+              <Button onClick={handleExport} disabled={exporting || logs.length === 0} isLoading={exporting} variant="secondary" size="sm" leftIcon={<Download className="w-3.5 h-3.5" />}>
                 {exporting ? 'Exporting...' : 'Export CSV'}
-              </button>
-              <button
-                onClick={() => setShowIpRules(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"
-              >
-                <Shield className="w-3.5 h-3.5" />
+              </Button>
+              <Button onClick={() => setShowIpRules(true)} variant="secondary" size="sm" leftIcon={<Shield className="w-3.5 h-3.5" />}>
                 IP Rules
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -470,7 +410,7 @@ export default function WebhookDetailPage() {
           )}
         />
 
-        <div className="bg-surface border border-border rounded overflow-hidden mt-4">
+        <Card variant="default" className="overflow-hidden mt-4">
           {logsLoading && (
             <div className="px-4 py-6 text-sm text-text-secondary text-center">Loading logs...</div>
           )}
@@ -503,18 +443,14 @@ export default function WebhookDetailPage() {
               </div>
               {hasMore && (
                 <div className="px-4 py-4 text-center">
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors disabled:opacity-50"
-                  >
+                  <Button onClick={loadMore} disabled={loadingMore} isLoading={loadingMore} variant="secondary" size="sm">
                     {loadingMore ? 'Loading...' : 'Load more'}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
           )}
-        </div>
+        </Card>
       </div>
 
       {showIpRules && id && (

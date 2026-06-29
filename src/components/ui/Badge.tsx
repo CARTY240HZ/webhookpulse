@@ -1,5 +1,5 @@
 import { forwardRef, type HTMLAttributes } from 'react'
-import { cn } from '../lib/cn'
+import { cn } from '../../lib/cn'
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: 'accent' | 'success' | 'danger' | 'warning' | 'info' | 'ghost'

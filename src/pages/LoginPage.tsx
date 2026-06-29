@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Activity, Loader2, Eye, EyeOff, AlertCircle, Mail, Lock } from 'lucide-react'
+import { Activity, Eye, EyeOff, AlertCircle, Mail, Lock } from 'lucide-react'
+import { Button } from '../components/ui'
 
 interface FormErrors {
   email?: string
@@ -178,14 +179,14 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
               disabled={loading || isLocked}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
+              isLoading={loading}
+              className="w-full"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {loading ? 'Signing in...' : 'Sign in'}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-4 text-center">

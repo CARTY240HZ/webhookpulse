@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Activity, Loader2, Eye, EyeOff, AlertCircle, Mail, Lock, User, CheckCircle } from 'lucide-react'
+import { Activity, Eye, EyeOff, AlertCircle, Mail, Lock, User, CheckCircle } from 'lucide-react'
+import { Button } from '../components/ui'
 
 interface FormErrors {
   fullName?: string
@@ -120,12 +121,9 @@ export default function RegisterPage() {
               We sent a confirmation link to <strong className="text-text-primary">{email}</strong>.
               Click it to activate your account.
             </p>
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full px-4 py-2.5 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
-            >
+            <Button onClick={() => navigate('/login')} className="w-full">
               Go to sign in
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -269,14 +267,9 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            <Button type="submit" disabled={loading} isLoading={loading} className="w-full">
               {loading ? 'Creating...' : 'Create account'}
-            </button>
+            </Button>
           </form>
         </div>
 

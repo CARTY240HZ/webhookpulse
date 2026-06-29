@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { User, Activity, AlertTriangle, Shield, Copy, X, Code, ChevronDown, ChevronUp } from 'lucide-react'
+import { User, Activity, AlertTriangle, Shield, Copy, Code, ChevronDown, ChevronUp } from 'lucide-react'
 import { t, type TranslationKey } from '../i18n'
+import { Button, Modal } from '../components/ui'
 
 interface TemplateCardProps {
   templateId: string
@@ -98,39 +99,21 @@ function ScriptModal({ script, onClose }: { script: string; onClose: () => void 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-surface border border-border rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Code className="w-5 h-5 text-accent" />
-            <h3 className="text-lg font-semibold text-text-primary">{t('webhooks.templates.generate')}</h3>
-          </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto p-4">
-          <pre className="text-xs font-mono text-text-secondary bg-background border border-border rounded p-4 overflow-x-auto whitespace-pre-wrap break-all">
-            {script}
-          </pre>
-        </div>
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-border">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"
-          >
+    <Modal isOpen={true} onClose={onClose} title={t('webhooks.templates.generate')} className="max-w-3xl w-full max-h-[90vh] flex flex-col"
+      footer={
+        <div className="flex items-center justify-end gap-3">
+          <Button onClick={onClose} variant="secondary">
             {t('settings.cancel')}
-          </button>
-          <button
-            onClick={handleCopy}
-            className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
-          >
-            <Copy className="w-4 h-4" />
+          </Button>
+          <Button onClick={handleCopy} leftIcon={<Copy className="w-4 h-4" />}>
             {copied ? t('common.copied') : t('webhooks.templates.copy')}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      }>
+      <pre className="text-xs font-mono text-text-secondary bg-background border border-border rounded p-4 overflow-x-auto whitespace-pre-wrap break-all">
+        {script}
+      </pre>
+    </Modal>
   )
 }
 
@@ -471,13 +454,10 @@ export default function TemplateCard({ templateId, webhookUrl, type }: TemplateC
           <p className="text-sm text-text-secondary mb-4 flex-1">{meta.description}</p>
 
           {/* Preview toggle */}
-          <button
-            onClick={() => setPreviewOpen(!previewOpen)}
-            className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover transition-colors mb-3"
-          >
+          <Button onClick={() => setPreviewOpen(!previewOpen)} variant="ghost" size="sm" className="text-accent hover:text-accent-hover mb-3">
             {previewOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             {t('webhooks.templates.preview')}
-          </button>
+          </Button>
 
           {previewOpen && (
             <div className="mb-4 bg-background border border-border rounded p-3 overflow-x-auto">
@@ -491,14 +471,9 @@ export default function TemplateCard({ templateId, webhookUrl, type }: TemplateC
           )}
 
           {/* Action */}
-          <button
-            onClick={handleGenerate}
-            disabled={loading || !webhookUrl}
-            className="flex items-center justify-center gap-2 w-full px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-          >
-            <Code className="w-4 h-4" />
+          <Button onClick={handleGenerate} disabled={loading || !webhookUrl} isLoading={loading} className="w-full" leftIcon={<Code className="w-4 h-4" />}>
             {loading ? t('common.loading') : t('webhooks.templates.generate')}
-          </button>
+          </Button>
         </div>
       </div>
 

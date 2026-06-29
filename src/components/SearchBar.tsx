@@ -3,6 +3,7 @@ import { Search, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { t } from '../i18n'
 import { useDebounce } from '../hooks/useDebounce'
 import type { LogFilters } from '../hooks/useRealtimeLogs'
+import { Button, Badge } from '../components/ui'
 
 interface SearchBarProps {
   filters: LogFilters
@@ -65,23 +66,18 @@ export default function SearchBar({ filters, onChange, sources }: SearchBarProps
             {t('search.title')}
           </span>
           {activeCount > 0 && (
-            <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold bg-accent text-background">
-              {activeCount}
-            </span>
+            <Badge variant="accent" className="ml-2 w-5 h-5 rounded-full text-[10px] font-bold justify-center p-0">{activeCount}</Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
           {activeCount > 0 && (
-            <button
-              onClick={(e) => {
+            <Button onClick={(e) => {
                 e.stopPropagation()
                 handleClear()
-              }}
-              className="flex items-center gap-1 text-xs text-text-secondary hover:text-danger transition-colors"
-            >
+              }} variant="ghost" size="sm" className="text-text-secondary hover:text-danger p-1">
               <X className="w-3 h-3" />
               {t('search.clear')}
-            </button>
+            </Button>
           )}
           {expanded ? (
             <ChevronUp className="w-4 h-4 text-text-secondary" />
@@ -177,21 +173,19 @@ export default function SearchBar({ filters, onChange, sources }: SearchBarProps
                 const isActive =
                   draft.type === type || (type === 'all' && !draft.type)
                 return (
-                  <button
+                  <Button
                     key={type}
                     onClick={() => updateDraft('type', type)}
-                    className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      isActive
-                        ? 'bg-accent text-background'
-                        : 'bg-background border border-border text-text-primary hover:bg-elevated'
-                    }`}
+                    variant={isActive ? 'primary' : 'ghost'}
+                    size="sm"
+                    className={isActive ? '' : 'bg-background border border-border text-text-primary hover:bg-elevated'}
                   >
                     {type === 'all'
                       ? t('search.all')
                       : type === 'native'
                         ? t('webhooks.native')
                         : t('webhooks.discord')}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
@@ -199,12 +193,9 @@ export default function SearchBar({ filters, onChange, sources }: SearchBarProps
 
           {/* Apply button */}
           <div className="flex justify-end pt-1">
-            <button
-              onClick={handleApply}
-              className="px-5 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
-            >
+            <Button onClick={handleApply}>
               {t('search.apply')}
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { Activity, Settings, Home, LogOut, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '../components/ui'
 
 export default function Sidebar() {
   const { signOut } = useAuth()
@@ -39,12 +40,9 @@ export default function Sidebar() {
             WebhookPulse
           </span>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
-        >
+        <Button onClick={() => setCollapsed(!collapsed)} variant="ghost" size="sm" className="ml-auto p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]">
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+        </Button>
       </div>
 
       {/* Navigation */}
@@ -78,13 +76,10 @@ export default function Sidebar() {
 
       {/* Sign out */}
       <div className="p-2 border-t border-[var(--border)] shrink-0">
-        <button
-          onClick={signOut}
-          className="group flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all duration-200"
-        >
+        <Button onClick={signOut} variant="ghost" size="sm" className="group w-full flex items-center gap-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]">
           <LogOut className="w-4.5 h-4.5 shrink-0 transition-transform duration-200 group-hover:scale-110" />
           {!collapsed && <span className="whitespace-nowrap overflow-hidden">Sign out</span>}
-        </button>
+        </Button>
       </div>
     </aside>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { cn } from '../lib/cn'
+import { cn } from '../../lib/cn'
 import { Button } from './Button'
 import { X } from 'lucide-react'
 

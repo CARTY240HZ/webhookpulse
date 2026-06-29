@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Plus, Zap, MessageSquare } from 'lucide-react'
+import { Plus, Zap, MessageSquare } from 'lucide-react'
 import type { Webhook } from '../types'
+import { Button, Modal } from '../components/ui'
 
 type CreateResult = Webhook & { native_url: string; discord_url?: string; token?: string }
 
 interface CreateWebhookModalProps {
   onClose: () => void
-  onCreate: (name: string, description?: string, type: 'native' | 'discord') => Promise<CreateResult>
+  onCreate: (name: string, description?: string, type?: 'native' | 'discord') => Promise<CreateResult>
 }
 
 export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookModalProps) {
@@ -22,9 +23,6 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
     nameInputRef.current?.focus()
   }, [])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,14 +40,7 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onKeyDown={handleKeyDown}>
-      <div className="bg-surface border border-border rounded-lg p-6 w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-text-primary">Create Webhook</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Modal isOpen={true} onClose={onClose} title="Create Webhook">
 
         {result ? (
           <div className="space-y-4">
@@ -62,12 +53,9 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                     <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
                       {result.native_url}
                     </code>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(result.native_url)}
-                      className="text-xs text-accent hover:text-accent-hover"
-                    >
+                    <Button onClick={() => navigator.clipboard.writeText(result.native_url)} variant="ghost" size="sm" className="text-xs text-accent hover:text-accent-hover p-1">
                       Copy
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 {result.discord_url && (
@@ -77,12 +65,9 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                       <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
                         {result.discord_url}
                       </code>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(result.discord_url)}
-                        className="text-xs text-accent hover:text-accent-hover"
-                      >
+                      <Button onClick={() => navigator.clipboard.writeText(result.discord_url || '')} variant="ghost" size="sm" className="text-xs text-accent hover:text-accent-hover p-1">
                         Copy
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -93,12 +78,9 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
                       <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
                         {result.token}
                       </code>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(result.token)}
-                        className="text-xs text-accent hover:text-accent-hover"
-                      >
+                      <Button onClick={() => navigator.clipboard.writeText(result.token || '')} variant="ghost" size="sm" className="text-xs text-accent hover:text-accent-hover p-1">
                         Copy
-                      </button>
+                      </Button>
                     </div>
                     <p className="text-xs text-danger mt-1">Copy it now or retrieve it later in the Dashboard panel with your password.</p>
                   </div>
@@ -106,12 +88,9 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
               </div>
             </div>
             <div className="flex justify-end">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
-              >
+              <Button onClick={onClose}>
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -187,25 +166,15 @@ export default function CreateWebhookModal({ onClose, onCreate }: CreateWebhookM
 
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"
-              >
+              <Button type="button" onClick={onClose} variant="secondary">
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !name.trim()}
-                className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
+              </Button>
+              <Button type="submit" disabled={loading || !name.trim()} isLoading={loading} leftIcon={<Plus className="w-4 h-4" />}>
                 {loading ? 'Creating...' : 'Create'}
-              </button>
+              </Button>
             </div>
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

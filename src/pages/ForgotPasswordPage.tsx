@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Activity, Loader2, AlertCircle, Mail, ArrowLeft, CheckCircle } from 'lucide-react'
+import { Activity, AlertCircle, Mail, ArrowLeft, CheckCircle } from 'lucide-react'
+import { Button } from '../components/ui'
 
 interface FormErrors {
   email?: string
@@ -119,14 +120,14 @@ export default function ForgotPasswordPage() {
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
+              isLoading={loading}
+              className="w-full"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {loading ? 'Sending...' : 'Send reset link'}
-            </button>
+            </Button>
           </form>
         </div>
 

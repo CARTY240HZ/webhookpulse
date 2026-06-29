@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { X, Eye, Copy } from 'lucide-react'
+import { Eye, Copy } from 'lucide-react'
+import { Button, Modal } from '../components/ui'
 
 interface RevealWebhookUrlModalProps {
   webhookName: string
@@ -36,15 +37,7 @@ export default function RevealWebhookUrlModal({ webhookName, webhookId, onClose,
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-surface border border-border rounded-lg p-6 w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-text-primary">Reveal Discord URL</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal isOpen={true} onClose={onClose} title="Reveal Discord URL">
         {result ? (
           <div className="space-y-4">
             <div className="bg-danger/10 border border-danger/20 rounded p-4">
@@ -59,9 +52,9 @@ export default function RevealWebhookUrlModal({ webhookName, webhookId, onClose,
                   <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
                     {result.discord_url}
                   </code>
-                  <button onClick={() => handleCopy(result.discord_url)} className="text-xs text-accent hover:text-accent-hover">
+                  <Button onClick={() => handleCopy(result.discord_url)} variant="ghost" size="sm" className="text-xs text-accent hover:text-accent-hover p-1">
                     <Copy className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div>
@@ -70,20 +63,17 @@ export default function RevealWebhookUrlModal({ webhookName, webhookId, onClose,
                   <code className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 text-text-primary truncate">
                     {result.token}
                   </code>
-                  <button onClick={() => handleCopy(result.token)} className="text-xs text-accent hover:text-accent-hover">
+                  <Button onClick={() => handleCopy(result.token)} variant="ghost" size="sm" className="text-xs text-accent hover:text-accent-hover p-1">
                     <Copy className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
 
             <div className="flex justify-end">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors"
-              >
+              <Button onClick={onClose}>
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -105,25 +95,15 @@ export default function RevealWebhookUrlModal({ webhookName, webhookId, onClose,
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded text-sm font-medium bg-surface border border-border text-text-primary hover:bg-elevated transition-colors"
-              >
+              <Button type="button" onClick={onClose} variant="secondary">
                 Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !password.trim()}
-                className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-              >
-                <Eye className="w-4 h-4" />
+              </Button>
+              <Button type="submit" disabled={loading || !password.trim()} isLoading={loading} leftIcon={<Eye className="w-4 h-4" />}>
                 {loading ? 'Verifying...' : 'Reveal URL'}
-              </button>
+              </Button>
             </div>
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }

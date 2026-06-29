@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Shield, X, Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus } from 'lucide-react'
 import { t } from '../i18n'
-import type { IpRule } from '../types'
 import { useIpRules } from '../hooks/useIpRules'
+import { Button, Badge, Modal } from '../components/ui'
 
 interface IpRulesModalProps {
   webhookId: string
@@ -68,34 +68,15 @@ export default function IpRulesModal({ webhookId, onClose }: IpRulesModalProps) 
   const isEnabled = rules.length > 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-surface border border-border rounded shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-accent" />
-            <h2 className="text-lg font-semibold text-text-primary">{t('ipRules.title')}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal isOpen={true} onClose={onClose} title={t('ipRules.title')} className="max-w-lg w-full max-h-[80vh] flex flex-col">
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* Status */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-text-secondary">{t('ipRules.enabled')}</span>
-            <span
-              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                isEnabled ? 'bg-success/10 text-success' : 'bg-text-secondary/10 text-text-secondary'
-              }`}
-            >
+            <Badge variant={isEnabled ? 'success' : 'ghost'}>
               {isEnabled ? 'ON' : 'OFF'}
-            </span>
+            </Badge>
           </div>
 
           {error && (
@@ -145,14 +126,9 @@ export default function IpRulesModal({ webhookId, onClose }: IpRulesModalProps) 
               />
             </div>
 
-            <button
-              onClick={handleAdd}
-              disabled={adding || !ipValid}
-              className="flex items-center justify-center gap-2 w-full px-4 py-2 rounded text-sm font-medium bg-accent text-background hover:bg-accent-hover transition-colors disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4" />
+            <Button onClick={handleAdd} disabled={adding || !ipValid} isLoading={adding} className="w-full" leftIcon={<Plus className="w-4 h-4" />}>
               {adding ? '...' : t('ipRules.addRule')}
-            </button>
+            </Button>
           </div>
 
           {/* Rules Table */}
@@ -181,24 +157,15 @@ export default function IpRulesModal({ webhookId, onClose }: IpRulesModalProps) 
                       <tr key={rule.id} className="hover:bg-elevated transition-colors">
                         <td className="px-3 py-2 text-text-primary font-mono text-xs">{rule.ip}</td>
                         <td className="px-3 py-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                              rule.action === 'allow'
-                                ? 'bg-success/10 text-success'
-                                : 'bg-danger/10 text-danger'
-                            }`}
-                          >
+                          <Badge variant={rule.action === 'allow' ? 'success' : 'danger'}>
                             {rule.action === 'allow' ? t('ipRules.allow') : t('ipRules.block')}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <button
-                            onClick={() => handleDelete(rule.id)}
-                            className="text-text-secondary hover:text-danger transition-colors"
-                            title={t('ipRules.delete')}
-                          >
+                          <Button onClick={() => handleDelete(rule.id)} variant="ghost" size="sm" className="text-text-secondary hover:text-danger p-1"
+                            title={t('ipRules.delete')}>
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -208,7 +175,6 @@ export default function IpRulesModal({ webhookId, onClose }: IpRulesModalProps) 
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

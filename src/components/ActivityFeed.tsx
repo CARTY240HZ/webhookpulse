@@ -4,6 +4,7 @@ import { Pause, Play, Radio } from 'lucide-react'
 import { useActivityFeed } from '../hooks/useActivityFeed'
 import { t } from '../i18n'
 import type { LogItem } from '../hooks/useActivityFeed'
+import { Button, Badge } from '../components/ui'
 
 interface ActivityFeedProps {
   className?: string
@@ -31,15 +32,9 @@ function StatusDot({ status }: { status: LogItem['status'] }) {
 function TypeBadge({ type }: { type: LogItem['type'] }) {
   const isDiscord = type === 'discord'
   return (
-    <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-        isDiscord
-          ? 'bg-info/10 text-info'
-          : 'bg-accent/10 text-accent'
-      }`}
-    >
+    <Badge variant={isDiscord ? 'info' : 'accent'} className="px-1.5 py-0.5 text-[10px]">
       {isDiscord ? 'Discord' : 'Native'}
-    </span>
+    </Badge>
   )
 }
 
@@ -80,11 +75,8 @@ export default function ActivityFeed({ className = '' }: ActivityFeedProps) {
             title={isConnected ? t('activity.connected') : t('activity.disconnected')}
           />
         </div>
-        <button
-          onClick={() => setIsPaused(!isPaused)}
-          className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-lg hover:bg-[var(--bg-elevated)]"
-          title={isPaused ? t('activity.resume') : t('activity.pause')}
-        >
+        <Button onClick={() => setIsPaused(!isPaused)} variant="ghost" size="sm" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          title={isPaused ? t('activity.resume') : t('activity.pause')}>
           {isPaused ? (
             <>
               <Play className="w-3.5 h-3.5" />
@@ -96,7 +88,7 @@ export default function ActivityFeed({ className = '' }: ActivityFeedProps) {
               <span className="hidden sm:inline">{t('activity.pause')}</span>
             </>
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Log List */}
@@ -122,10 +114,9 @@ export default function ActivityFeed({ className = '' }: ActivityFeedProps) {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <TypeBadge type={log.type} />
                     {log.source && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
-                        style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>
+                      <Badge variant="ghost" className="px-1.5 py-0.5 text-[10px]" style={{ background: 'rgba(168,85,247,0.1)', color: '#a855f7' }}>
                         {log.source}
-                      </span>
+                      </Badge>
                     )}
                     <StatusDot status={log.status} />
                   </div>

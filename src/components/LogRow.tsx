@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import type { WebhookLog } from '../types'
 import PayloadViewer from './PayloadViewer'
 import RobloxEmbed from './RobloxEmbed'
+import { Button } from '../components/ui'
 
 interface LogRowProps {
   log: WebhookLog
@@ -64,14 +65,12 @@ export default function LogRow({ log, selected, onSelect, onDelete }: LogRowProp
           </span>
         </button>
         {onDelete && (
-          <button
-            onClick={() => onDelete(log.id)}
-            className="shrink-0 text-text-secondary hover:text-danger transition-colors"
+          <Button onClick={() => onDelete(log.id)} variant="ghost" size="sm" className="shrink-0 text-text-secondary hover:text-danger p-1"
             title="Delete log"
             aria-label="Delete log"
           >
             <Trash2 className="w-4 h-4" />
-          </button>
+          </Button>
         )}
       </div>
       

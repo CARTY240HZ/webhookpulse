@@ -10,6 +10,7 @@ import RevealWebhookUrlModal from '../components/RevealWebhookUrlModal'
 import { SkeletonCard } from '../components/Skeleton'
 import { useAdaptiveServing } from '../hooks/useAdaptiveServing'
 import type { Webhook } from '../types'
+import { Button, Card } from '../components/ui'
 
 export default function DashboardPage() {
   const { webhooks, loading, error, createWebhook, deleteWebhook, toggleWebhook, revealWebhook } = useWebhooks()
@@ -58,13 +59,9 @@ export default function DashboardPage() {
               Slow connection — reduced data mode
             </span>
           )}
-          <button
-            onClick={() => setModalOpen(true)}
-            className="btn-glow flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold"
-          >
-            <Plus className="w-4 h-4" />
+          <Button onClick={() => setModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
             New webhook
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -77,15 +74,14 @@ export default function DashboardPage() {
             { icon: BarChart3, label: 'Logs today', value: totalLogs.toLocaleString(), color: 'var(--info)' },
             { icon: Clock, label: 'Avg age', value: `${avgUptimeDays}d`, color: 'var(--warning)' },
           ].map((stat) => (
-            <div key={stat.label}
-              className="rounded-xl p-5 border border-[var(--border)] card-hover"
-              style={{ background: 'var(--bg-elevated)', boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            <Card key={stat.label} variant="elevated" hover={true} className="p-5"
+              style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
               <div className="flex items-center gap-2 mb-3">
                 <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
                 <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{stat.label}</span>
               </div>
               <span className="text-2xl font-bold text-[var(--text-primary)] tabular-nums">{stat.value}</span>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -109,22 +105,18 @@ export default function DashboardPage() {
 
       {/* Empty state */}
       {!loading && webhooks.length === 0 && (
-        <div className="rounded-xl p-12 text-center border border-[var(--border)]"
-          style={{ background: 'var(--bg-elevated)', boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+        <Card variant="elevated" className="p-12 text-center"
+          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
             style={{ background: 'rgba(212,232,58,0.08)' }}>
             <Inbox className="w-8 h-8" style={{ color: 'var(--accent)' }} />
           </div>
           <h3 className="text-[var(--text-primary)] font-semibold text-lg mb-2">No webhooks yet</h3>
           <p className="text-sm text-[var(--text-secondary)] mb-6 max-w-sm mx-auto">Create your first webhook to start receiving events from Discord, Roblox, or any custom service.</p>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="btn-glow inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold"
-          >
-            <Plus className="w-4 h-4" />
+          <Button onClick={() => setModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />} size="lg">
             Create webhook
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
 
       {/* Webhook list */}
