@@ -5,16 +5,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#0C0C0E',
-        surface: '#161618',
-        elevated: '#1C1C1E',
-        border: '#27272A',
-        'text-primary': '#FAFAFA',
-        'text-secondary': '#A1A1AA',
-        accent: '#D4E83A',
-        'accent-hover': '#E8F96A',
-        danger: '#EF4444',
-        success: '#22C55E',
+        background: 'var(--bg)',
+        surface: 'var(--bg-secondary)',
+        elevated: 'var(--bg-elevated)',
+        card: 'var(--bg-card)',
+        'text-primary': 'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-muted': 'var(--text-muted)',
+        accent: 'var(--accent)',
+        'accent-hover': 'var(--accent-hover)',
+        'accent-glow': 'var(--accent-glow)',
+        danger: 'var(--danger)',
+        success: 'var(--success)',
+        warning: 'var(--warning)',
+        info: 'var(--info)',
+        border: 'var(--border)',
+        'border-hover': 'var(--border-hover)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -24,6 +30,13 @@ export default {
       },
       transitionDuration: {
         DEFAULT: '150ms',
+      },
+      transitionTimingFunction: {
+        'ease-out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'ease-smooth': 'cubic-bezier(0.23, 1, 0.32, 1)',
+      },
+      letterSpacing: {
+        'tight-display': '-0.02em',
       },
     },
   },

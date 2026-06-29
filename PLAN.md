@@ -1,87 +1,101 @@
-# Plan de Trabajo — WebhookPulse (Vercel + Supabase)
+# Full Sweep Plan — Token Unification + Primitive Migration
 
-## Contexto
+## State Audit (Current)
 
-WebhookPulse esta en produccion en Vercel. El ultimo deploy (commit `70d2f06`) agrego:
-- **Sentry**: Backend (`@sentry/node`) + Frontend (`@sentry/react`) con captura de errores
-- **Tests**: Vitest + unit tests para `_lib/` (validate, cors, hmac) + integration test para `webhook-receive`
-- **Shared Infrastructure**: `api/_lib/` con 8 modulos reutilizables (supabase, cors, auth, validate, ratelimit, hmac, errors, sentry)
-- **Security Hardening**: 12 fixes completos (HMAC secrets, rate limit, body cap, CORS, headers filter, UUID validation, honeypot, webhook limit, DB index)
-- **CSV Export**: `api/webhook-export.ts` + boton en frontend
-- **Paginacion**: "Load more" en logs (50 por pagina)
-- **Stats Dashboard**: 4 graficos + tarjetas resumen
-- Cleanup: archivos obsoletos de Netlify/Redis borrados
-- Script Lua unico: `roblox/WebhookPulseSender_v2.lua`
+- **Tailwind config** (`tailwind.config.js`) has hardcoded hex values that conflict with `index.css` CSS vars
+  - `background: '#0C0C0E'` vs `index.css` `--bg: #08080A`
+  - `surface: '#161618'` vs `index.css` `--bg-elevated: #16161A`
+  - `border: '#27272A'` vs `index.css` `--border: rgba(255,255,255,0.06)`
+  - `text-primary: '#FAFAFA'` vs `index.css` `--text-primary: #F0F0F5`
+  - `danger: '#EF4444'` vs `index.css` `--danger: #F87171`
+  - `success: '#22C55E'` vs `index.css` `--success: #4ADE80`
+- **Mix of dialects**: some files use `var(--*)`, some use Tailwind classes like `bg-surface`, some use raw Tailwind like `blue-500`, `green-400`
+- **No UI primitives exist** (Button, Card, Badge, Modal were never created in this workspace)
 
-## Estado de Tareas
+## Goal
 
-| # | Tarea | Estado | Commit |
-|---|-------|--------|--------|
-| 1 | Verificar embed (no "unknown") | ✅ Hecho | `14e7248` |
-| 2 | Endpoint CSV Export | ✅ Hecho | `97e3c61` |
-| 3 | Boton Export CSV en frontend | ✅ Hecho | `97e3c61` |
-| 4 | Security Audit + Rate Limiting | ✅ Hecho | `09962af` |
-| 5 | Paginacion de Logs | ✅ Hecho | `b92b4e9` |
-| 6 | Stats Dashboard (Graficos) | ✅ Hecho | `ffd14d9` |
-| 7 | Shared Infrastructure (`api/_lib/`) | ✅ Hecho | `251dcf0` |
-| 8 | Security Hardening (12 fixes) | ✅ Hecho | `251dcf0` + `872cbed` |
-| 9 | Tests (Vitest) | ✅ Hecho | `c5d0bed` |
-| 10 | Sentry (backend + frontend) | ✅ Hecho | `70d2f06` |
+1. **Unify tailwind.config.js** to consume CSS vars from `index.css` as single source of truth
+2. **Create minimal UI primitives** (Button, Card, Badge, Modal) in `src/components/ui/` — composition-based, forwardRef, no Singleton
+3. **Migrate all 19 page/component files** to use unified tokens and/or primitives
+4. **Preserve all existing behavior** — no logic changes, only styling unification
 
----
+## Files to Touch
 
-## Security Fixes (12/12 completos)
+### Stage 1 — Foundation (single agent)
+- `tailwind.config.js` — rewrite to consume CSS vars
+- `src/index.css` — add RGB channels for opacity, display type, motion tokens, primitive base classes
+- `src/components/ui/` — create Button, Card, Badge, Modal, index.ts barrel
 
-| ID | Severidad | Fix | Commit |
-|----|-----------|-----|--------|
-| S1 | Critico | CORS restrictivo en auth endpoints (`getCorsHeaders('private')`) | `251dcf0` |
-| S2 | Critico | HMAC-SHA256 para secrets (`_lib/hmac.ts`) | `872cbed` |
-| S3 | Critico | No exponer `error.details` al cliente (`apiError()`) | `251dcf0` |
-| S4 | Critico | Filtrar headers (whitelist) antes de guardar en DB | `251dcf0` |
-| S5 | Alto | No devolver `secret` en `webhook-list` | `251dcf0` |
-| S6 | Alto | DB index `idx_webhook_logs_ip` para rate limit | `872cbed` (SQL) |
-| S7 | Alto | Cap 10,000 filas en export + `X-Truncated` header | `251dcf0` |
-| S8 | Alto | Validacion UUID en `webhook-delete`, `webhook-logs`, `webhook-export` | `251dcf0` |
-| S9 | Medio | Limite 20 webhooks por usuario (`MAX_WEBHOOKS_PER_USER`) | `872cbed` |
-| S10 | Medio | Honeypot 200 siempre en `webhook-receive` | `251dcf0` |
-| S11 | Medio | Singleton Supabase (`_lib/supabase.ts`) | `251dcf0` |
-| S12 | Medio | Limite name (100) / description (500) chars | `251dcf0` |
+### Stage 2 — Parallel Migration (4 agents)
 
----
+**Agent A — Dashboard + Layout**
+- `src/pages/DashboardPage.tsx`
+- `src/components/Layout.tsx`
+- `src/components/TopBar.tsx`
+- `src/components/Sidebar.tsx`
+- `src/components/ActivityFeed.tsx`
 
-## Fases de Implementacion
+**Agent B — Auth + Settings**
+- `src/pages/LoginPage.tsx`
+- `src/pages/RegisterPage.tsx`
+- `src/pages/SettingsPage.tsx`
+- `src/pages/ForgotPasswordPage.tsx`
+- `src/pages/ResetPasswordPage.tsx`
+- `src/components/IpRulesModal.tsx`
 
-| Fase | Scope | Estado | Commit |
-|------|-------|--------|--------|
-| 1+2 | `api/_lib/` + refactor 6 endpoints + S1/S3/S4/S5/S7/S8/S10/S11/S12 | ✅ Hecho | `251dcf0` |
-| 3 | S2 (HMAC secrets) + S6 (index) + migracion SQL + endpoint `migrate-secrets` | ✅ Hecho | `872cbed` |
-| 4 | S7 (export cap) + S9 (webhook limit) | ✅ Hecho | `872cbed` |
-| 5 | Tests (vitest + unit + integration) | ✅ Hecho | `c5d0bed` |
-| 6 | Sentry (backend + frontend) | ✅ Hecho | `70d2f06` |
+**Agent C — Webhook Detail + Logs**
+- `src/pages/WebhookDetailPage.tsx`
+- `src/components/LogRow.tsx`
+- `src/components/HealthIndicator.tsx`
+- `src/components/SearchBar.tsx`
+- `src/components/PayloadViewer.tsx`
 
----
+**Agent D — Modals + Misc**
+- `src/components/CreateWebhookModal.tsx` (partial — already partially migrated)
+- `src/components/RevealWebhookUrlModal.tsx`
+- `src/components/TemplateCard.tsx`
+- `src/components/Skeleton.tsx`
+- `src/components/SseStatus.tsx`
+- `src/components/ScrollToTop.tsx`
+- `src/components/ErrorBoundary.tsx`
+- `src/components/RobloxEmbed.tsx`
 
-## Reglas de Commit
+### Stage 3 — Stats + Landing (already partially done, verify)
+- `src/pages/StatsPage.tsx`
+- `src/pages/LandingPage.tsx` (already uses var(--*) heavily)
 
-- Mensajes en ingles: `feat:`, `fix:`, `security:`, `docs:`
-- Ejemplo: `feat: CSV export endpoint`, `security: rate limiting and body size cap`
-- Siempre `git push origin main` para deploy Vercel automatico
+### Stage 4 — Verification
+- `npm run typecheck` (tsc --noEmit)
+- `npm run build` (vite build)
+- Visual smoke test on dev server
 
-## Reglas de Diseno Visual (NUNCA ROMPER)
+## Token Map (CSS vars → Tailwind classes)
 
-- Background: `#0C0C0E`, Surface: `#161618`, Elevated: `#1C1C1E`, Border: `#27272A`
-- Acento UNICO: `#D4E83A` (lime)
-- NO emojis, iconos Lucide React
-- NO degradados, colores solidos oscuros
-- Barra lateral lime en embeds estilo Discord
-- NUNCA ser generico, siempre premium
+| CSS Var | Tailwind Class (after config rewrite) |
+|---------|----------------------------------------|
+| `--bg` | `bg-background` |
+| `--bg-secondary` | `bg-surface` |
+| `--bg-elevated` | `bg-elevated` |
+| `--bg-card` | `bg-card` |
+| `--text-primary` | `text-text-primary` |
+| `--text-secondary` | `text-text-secondary` |
+| `--text-muted` | `text-text-muted` |
+| `--accent` | `text-accent` / `bg-accent` |
+| `--accent-hover` | `text-accent-hover` / `bg-accent-hover` |
+| `--danger` | `text-danger` / `bg-danger` |
+| `--success` | `text-success` / `bg-success` |
+| `--warning` | `text-warning` / `bg-warning` |
+| `--info` | `text-info` / `bg-info` |
+| `--border` | `border-border` |
+| `--border-hover` | `border-border-hover` |
 
-## Notas para Claude Code
+## Rules for Agents
 
-- El usuario quiere precision extrema, no generico, nivel profesional elite global.
-- Siempre leer archivos antes de modificarlos. Nunca modificar de memoria.
-- Para Lua: siempre usar `pcall` para llamadas a servicios de Roblox.
-- Para backend: siempre manejar OPTIONS preflight, siempre setear CORS headers.
-- Para frontend: mantener consistencia visual con el tema oscuro lime.
-- Si el usuario pide "mas informacion", referirse a la estructura de payload Roblox.
-- Si el usuario reporta errores 404/500, verificar `vercel.json` y variables de entorno.
+1. **Never change logic** — only className, style, and token usage
+2. **Replace all raw Tailwind colors** (`blue-500`, `green-400`, `red-500`, etc.) with unified tokens
+3. **Replace `var(--*)` with Tailwind classes** where the config now supports it (optional but preferred for consistency)
+4. **Keep `var(--*)` for dynamic values** (e.g., `style={{ background: 'var(--bg-glass)' }}` where no Tailwind class exists)
+5. **Button primitive**: replace all `<button>` with `<Button>` where possible
+6. **Card primitive**: replace repeated glass-card patterns with `<Card>`
+7. **Modal primitive**: replace all modal divs with `<Modal>`
+8. **Badge primitive**: replace inline status badges with `<Badge>`
